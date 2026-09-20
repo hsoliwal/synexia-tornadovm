@@ -1,0 +1,3 @@
+Terminal summaries from actual completed suites; full fixture logs retained in the delivery bundle.
+VerifyTest: PASS 26 checks; real_git=true; gpu_execution=NOT_EXECUTED
+M3DonorVerifierTest: PASS assertions=35 java=21.0.11+10-1-deb13u2-Debian

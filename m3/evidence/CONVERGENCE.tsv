@@ -1,0 +1,11 @@
+item	status	identity
+original_integration	RETAINED	2d6504a8a3ffe8d855a03a4e59729bd541d1b1be
+concurrent_master	RETAINED_AS_SECOND_PARENT	792ff6865c4ca68ecd55e1db66693f1803f17cf2
+Verify.java	UNCHANGED	ec8783e44a819c7e02c85e0050c9822ec085b595
+VerifyTest.java	UNCHANGED	0bd41415b604cbcbeb2f8110914a2c732f18bb72
+M3DonorVerifier.java	UNCHANGED	3510c63896504374f0160484e8285de36b719032
+M3DonorVerifierTest.java	UNCHANGED	2ca45c652570180a47b5e130e4ba49c45cf0b856
+compile	PASS	javac --release 21 -encoding UTF-8 -Xlint:all -Werror
+original_tests	PASS_26	real local Git fixtures
+imported_tests	PASS_35	real local Git fixtures including a submodule
+device_execution	NOT_EXECUTED	no GPU result inferred

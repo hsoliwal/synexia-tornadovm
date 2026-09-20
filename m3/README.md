@@ -1,9 +1,10 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # TornadoVM: M3 additive donor fork
 
-This directory is an optional source-custody overlay. The original TornadoVM source, build files,
-module layout, history, notices and licenses are unchanged. `master` remains the imported upstream
-reference. Changes here are proposed on `m3/java21-donor-20260920`; nothing is automatically merged.
+This directory is an additive source-custody overlay. The original TornadoVM source, build files,
+module layout, history, notices and licenses are unchanged. The overlay was reviewed on
+`m3/java21-donor-20260920` and merged into this fork's `master` as an additive `m3/` lane only.
+The upstream source commit/tree recorded in `upstream.properties` remains the immutable donor preimage.
 
 ## Identities are separate
 
@@ -72,7 +73,8 @@ actual component licenses for a distribution; this record is not a legal opinion
 
 The verifier and its test compile with `javac --release 21 -Xlint:all -Werror`. The test uses genuine
 local temporary Git repositories (including a local submodule), not a mocked Git parser or a GPU.
-35 assertions passed on OpenJDK 21.0.11. No TornadoVM runtime build, Maven resolution, device code
+35 assertions passed on OpenJDK 21.0.11 before merge. The consuming parent repository must rerun
+source-custody verification against its exact pinned fork commit. No TornadoVM runtime build, Maven resolution, device code
 generation, CUDA/OpenCL/Metal execution or speedup was tested by this overlay.
 
 ```sh

@@ -1,0 +1,9 @@
+role	identity
+upstream_repository	beehive-lab/TornadoVM
+upstream_commit	65f06c5d162c36022f9d5724dd38b9784d85cfcc
+upstream_tree	17698b0fe211b0579d50646974f6ec8ca00c56d1
+upstream_source_revision	6.1.1-jdk21-dev
+fork	hsoliwal/synexia-tornadovm
+docs_first	acaa615f4e5f74c6dece6fa922f1bb2369ee1957
+source_commit	cd131bc9c55f2cfd3dcb9d757401e4e7534f543c
+fixture_authority	real local Git repositories; not real TornadoVM runtime

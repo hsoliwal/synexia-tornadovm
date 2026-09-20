@@ -1,0 +1,7 @@
+item	status
+java21_source_guard	PASS_26_CHECKS_TWICE
+source_blob_readback	PASS
+upstream_compiler_build	NOT_EXECUTED
+gpu_execution	NOT_EXECUTED
+real_remote_clone	BLOCKED_DNS
+canonical_promotion	NOT_AUTHORIZED

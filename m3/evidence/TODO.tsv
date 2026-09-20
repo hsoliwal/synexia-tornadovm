@@ -1,0 +1,6 @@
+priority	status	task
+P1	DONE	Java read-only source/parent-pin guard and real Git regressions
+P1	DONE	Keep inherited source/build/licenses unchanged
+P1	OPEN	Run guard on a full remote clone in the parent checkout
+P1	OPEN	Build actual upstream SDK and execute device parity on a provisioned GPU
+P2	SEPARATE	Maven artifact provenance and runtime version are independent of source pin

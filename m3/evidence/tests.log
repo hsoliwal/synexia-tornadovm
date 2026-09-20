@@ -1,0 +1,45 @@
+SOURCE_CUSTODY_VERIFIED identity=a3250ab8997d3080ec0cc380f4f9cb47cf55f0c6abc6188ecc5158df72fcd2a3
+PASS 1 real Git fork and parent binding passes
+SOURCE_CUSTODY_VERIFIED identity=a3250ab8997d3080ec0cc380f4f9cb47cf55f0c6abc6188ecc5158df72fcd2a3
+PASS 2 same pins give identical source receipt
+PASS 3 inspection leaves donor and parent index bytes unchanged
+PASS 4 inspection leaves refs unchanged
+SOURCE_CUSTODY_VERIFIED identity=664439773fd6c24a9ccf4f08b1572a0e0b3a5c82ebe0ce3f3f52edea89b9a7e9
+PASS 5 standalone donor verification
+PASS 6 existing evidence cannot be overwritten
+PASS 7 symbolic upstream ref rejected
+PASS 8 abbreviated pin rejected
+HOLD identity=645365f83695bcc255dba101a97b7a787125792353a0fc19953af96085c80243
+PASS 9 different checkout head rejected
+HOLD identity=a5397a53a473e295d8bdfe1c5a363ea0c14c066738c7c68080a187a7b83d5c4a
+PASS 10 missing upstream history rejected
+PASS 11 output cannot mutate donor
+PASS 12 output cannot mutate host
+HOLD identity=664439773fd6c24a9ccf4f08b1572a0e0b3a5c82ebe0ce3f3f52edea89b9a7e9
+PASS 13 tracked donor modification rejected
+HOLD identity=664439773fd6c24a9ccf4f08b1572a0e0b3a5c82ebe0ce3f3f52edea89b9a7e9
+PASS 14 uncommitted overlay rejected
+HOLD identity=5bf3856a0cf9871e233959ef67b4f607b496eb4479d726c884a6aee74ca4e3a7
+PASS 15 shallow source history rejected
+HOLD identity=c864e4e07a45d1660bdc531e441604a926a0ccfcb82a4d6b3d787b0677274713
+PASS 16 committed upstream edit rejected by tree projection
+HOLD identity=9e1c843a53b0d33da15660d4ce598e21880b39eb8d9d685bbf1ee0bf1c97f82d
+PASS 17 new root namespace outside m3 rejected
+HOLD identity=24d1aca3f1c99be6098d3497166f1e9b6655edc8551f9728315ad3649e6c7614
+PASS 18 base already owning m3 requires explicit new policy
+HOLD identity=664439773fd6c24a9ccf4f08b1572a0e0b3a5c82ebe0ce3f3f52edea89b9a7e9
+PASS 19 dirty parent submodule configuration rejected
+HOLD identity=664439773fd6c24a9ccf4f08b1572a0e0b3a5c82ebe0ce3f3f52edea89b9a7e9
+PASS 20 staged parent configuration drift rejected
+HOLD identity=664439773fd6c24a9ccf4f08b1572a0e0b3a5c82ebe0ce3f3f52edea89b9a7e9
+PASS 21 staged gitlink drift rejected
+HOLD identity=664439773fd6c24a9ccf4f08b1572a0e0b3a5c82ebe0ce3f3f52edea89b9a7e9
+PASS 22 unexpected parent fork URL rejected
+HOLD identity=664439773fd6c24a9ccf4f08b1572a0e0b3a5c82ebe0ce3f3f52edea89b9a7e9
+PASS 23 duplicate config key rejected even when values agree
+HOLD identity=664439773fd6c24a9ccf4f08b1572a0e0b3a5c82ebe0ce3f3f52edea89b9a7e9
+PASS 24 noncanonical submodule path rejected
+SOURCE_CUSTODY_VERIFIED identity=a3250ab8997d3080ec0cc380f4f9cb47cf55f0c6abc6188ecc5158df72fcd2a3
+PASS 25 clean restored fixture verifies again
+PASS 26 source pass does not claim device execution or promotion
+PASS 26 checks; real_git=true; gpu_execution=NOT_EXECUTED

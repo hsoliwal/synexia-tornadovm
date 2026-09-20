@@ -1,0 +1,9 @@
+key	value
+profile	Java21 source-custody guard
+workers	1
+shards	1
+jdk	21.0.11+10-1-deb13u2-Debian
+git	2.47.3
+source_commit	cd131bc9c55f2cfd3dcb9d757401e4e7534f543c
+source_compile	javac --release 21 -encoding UTF-8 -Xlint:all -Werror
+runtime	java -ea -cp classes VerifyTest NEW_FIXTURE_DIRECTORY

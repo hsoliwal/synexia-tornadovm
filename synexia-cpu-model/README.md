@@ -53,6 +53,17 @@ RAM stay resident on the device. Full state is copied back on demand at completi
 An explicit `TornadoDevice` may be supplied to `TornadoRiscV32Executor`; otherwise TornadoVM's
 normal default-device selection applies.
 
+## Binary images
+
+`RiscV32ElfLoader` loads standard ELF32 little-endian RISC-V `ET_EXEC` / `ET_DYN` images.
+`PT_LOAD` segments are copied into each core's flat RAM, BSS is deterministically zeroed, and the
+machine is reset to the ELF entry point. This makes ordinary bare-metal RV32 binaries usable without
+putting ELF parsing, allocation or Java objects into the accelerator kernel.
+
+The current execution environment is deliberately a flat physical-memory machine. Linux/system-mode
+support still requires the separate privileged/CSR, interrupt, MMU/page-table and device/MMIO layers
+listed below; the ELF loader does not pretend those facilities exist.
+
 ## Build and test
 
 From the repository root on the JDK 22+ profile:

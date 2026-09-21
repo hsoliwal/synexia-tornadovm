@@ -820,6 +820,7 @@
         <module>tornado-cufft</module>
         <module>tornado-cudnn</module>
         <module>tornado-cusparse</module>
-        <module>tornado-cutlass</module>\n        <module>synexia-cpu-model</module>
+        <module>tornado-cutlass</module>
+        <module>synexia-cpu-model</module>
     </modules>
 </project>

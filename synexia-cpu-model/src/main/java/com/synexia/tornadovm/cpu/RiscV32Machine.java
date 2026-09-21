@@ -180,6 +180,40 @@ public final class RiscV32Machine {
         return total;
     }
 
+    public int readUnsignedByte(int core, int byteAddress) {
+        core(core);
+        requireMemoryRange(byteAddress, 1);
+        int word = memory.get(core * wordsPerCore + (byteAddress >>> 2));
+        return (word >>> ((byteAddress & 3) << 3)) & 0xff;
+    }
+
+    public void writeByte(int core, int byteAddress, int value) {
+        core(core);
+        requireMemoryRange(byteAddress, 1);
+        int index = core * wordsPerCore + (byteAddress >>> 2);
+        int shift = (byteAddress & 3) << 3;
+        int mask = 0xff << shift;
+        int oldWord = memory.get(index);
+        memory.set(index, (oldWord & ~mask) | ((value & 0xff) << shift));
+    }
+
+    public void loadBytes(int core, int byteAddress, byte[] bytes) {
+        core(core);
+        Objects.requireNonNull(bytes, "bytes");
+        requireMemoryRange(byteAddress, bytes.length);
+        for (int index = 0; index < bytes.length; index++) {
+            writeByte(core, byteAddress + index, bytes[index]);
+        }
+    }
+
+    public void fillBytes(int core, int byteAddress, int length, int value) {
+        core(core);
+        requireMemoryRange(byteAddress, length);
+        for (int index = 0; index < length; index++) {
+            writeByte(core, byteAddress + index, value);
+        }
+    }
+
     public int readWord(int core, int byteAddress) {
         core(core);
         requireWordAddress(byteAddress);

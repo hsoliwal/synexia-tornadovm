@@ -313,6 +313,9 @@ public final class RiscV32Machine {
         int slot = RiscV32.csrSlot(address);
         if (slot >= 0) {
             csrs.set(csrIndex(core, slot), value);
+            if (address == RiscV32.CSR_MIP && value != 0 && status.get(core) == RiscV32.STATUS_WAITING) {
+                status.set(core, RiscV32.STATUS_RUNNING);
+            }
             return;
         }
         if (address == RiscV32.CSR_MCYCLE || address == RiscV32.CSR_MINSTRET) {
@@ -404,6 +407,33 @@ public final class RiscV32Machine {
             if (status.get(core) == RiscV32.STATUS_WAITING) {
                 status.set(core, RiscV32.STATUS_RUNNING);
             }
+        }
+    }
+
+    public void setMachineSoftwareInterrupt(int core, boolean pending) {
+        setPendingInterrupt(core, RiscV32.MIP_MSIP, pending);
+    }
+
+    public void setMachineTimerInterrupt(int core, boolean pending) {
+        setPendingInterrupt(core, RiscV32.MIP_MTIP, pending);
+    }
+
+    public void setMachineExternalInterrupt(int core, boolean pending) {
+        setPendingInterrupt(core, RiscV32.MIP_MEIP, pending);
+    }
+
+    public void setPendingInterrupt(int core, int mask, boolean pending) {
+        core(core);
+        int supported = RiscV32.MIP_MSIP | RiscV32.MIP_MTIP | RiscV32.MIP_MEIP;
+        if ((mask & ~supported) != 0 || (mask & supported) == 0) {
+            throw new IllegalArgumentException("unsupported machine interrupt mask: 0x" + Integer.toHexString(mask));
+        }
+        int index = csrIndex(core, RiscV32.CSR_SLOT_MIP);
+        int value = csrs.get(index);
+        value = pending ? value | mask : value & ~mask;
+        csrs.set(index, value);
+        if (pending && status.get(core) == RiscV32.STATUS_WAITING) {
+            status.set(core, RiscV32.STATUS_RUNNING);
         }
     }
 

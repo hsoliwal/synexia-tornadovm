@@ -11,7 +11,7 @@
 
     <artifactId>synexia-cpu-model</artifactId>
     <name>synexia-cpu-model</name>
-    <description>Dense RV32IM CPU model executable as a TornadoVM accelerator kernel with JVM reference execution.</description>
+    <description>Tiered RV32IMAC execution engine with JVM reference semantics and TornadoVM accelerator backends.</description>
 
     <dependencies>
         <dependency>

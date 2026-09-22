@@ -106,7 +106,7 @@ public final class RiscV32Kernel {
                     rawInstruction = halfword;
                     if ((halfword & 3) != 3) {
                         instructionBytes = 2;
-                        instruction = decompress(halfword);
+                        instruction = decompressInstruction(halfword);
                         if (instruction == 0) {
                             pendingTrap = RiscV32.TRAP_ILLEGAL_INSTRUCTION;
                             pendingTrapValue = halfword;
@@ -853,7 +853,7 @@ public final class RiscV32Kernel {
      *
      * @return expanded instruction, or zero for a reserved/illegal encoding
      */
-    private static int decompress(int c) {
+    static int decompressInstruction(int c) {
         int quadrant = c & 3;
         int funct3 = (c >>> 13) & 7;
 

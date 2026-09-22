@@ -69,6 +69,20 @@ public final class RiscV32ExecutionEngine {
         return RiscV32ElfLoader.loadAllPrepared(machine, elf, maxBlockInstructions);
     }
 
+    /**
+     * Open a long-lived TornadoVM session for repeated run/wake/interrupt/resume cycles.
+     *
+     * <p>Use this instead of repeated {@link #execute} calls in services or emulators where plan
+     * construction, kernel compilation and device allocation must be amortized across many runs.
+     */
+    public TornadoRiscV32Session openSession(RiscV32Machine machine, int instructionsPerQuantum) {
+        if (!accelerator) {
+            throw new IllegalStateException("long-lived device sessions require a TornadoVM engine");
+        }
+        return new TornadoRiscV32Session(
+                machine, instructionsPerQuantum, device, statusPollInterval);
+    }
+
     public RiscV32ExecutionResult execute(RiscV32Machine machine,
             int instructionsPerQuantum, int maxQuanta) {
         if (accelerator) {

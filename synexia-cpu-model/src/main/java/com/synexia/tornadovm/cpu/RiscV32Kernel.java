@@ -456,17 +456,22 @@ public final class RiscV32Kernel {
                             int source1 = readRegister(registers, coreCount, core, rs1);
                             int source2 = readRegister(registers, coreCount, core, rs2);
                             int address = source1;
+                            int funct5 = instruction >>> 27;
+                            boolean loadReserved = funct5 == 0x02;
                             if (funct3 != 2) {
                                 pendingTrap = RiscV32.TRAP_ILLEGAL_INSTRUCTION;
                                 pendingTrapValue = rawInstruction;
                             } else if ((address & 3) != 0) {
-                                pendingTrap = RiscV32.TRAP_STORE_ADDRESS_MISALIGNED;
+                                pendingTrap = loadReserved
+                                        ? RiscV32.TRAP_LOAD_ADDRESS_MISALIGNED
+                                        : RiscV32.TRAP_STORE_ADDRESS_MISALIGNED;
                                 pendingTrapValue = address;
                             } else if (!validAddress(address, 4, memoryBytes)) {
-                                pendingTrap = RiscV32.TRAP_STORE_ACCESS_FAULT;
+                                pendingTrap = loadReserved
+                                        ? RiscV32.TRAP_LOAD_ACCESS_FAULT
+                                        : RiscV32.TRAP_STORE_ACCESS_FAULT;
                                 pendingTrapValue = address;
                             } else {
-                                int funct5 = instruction >>> 27;
                                 int oldValue = load32(memory, coreCount, core, address);
                                 int newValue = oldValue;
                                 boolean store = true;

@@ -7,16 +7,19 @@
 package com.synexia.tornadovm.cpu;
 
 /**
- * Dense 64-bit micro-op format used by the RV32 basic-block tier.
+ * Dense 64-bit micro-op format used by the RV32 compiled tier.
  *
  * <pre>
- * 63                    32 31              24 23  22    18 17    13 12     8 7       0
- * +-----------------------+------------------+--+--------+--------+---------+---------+
- * | signed immediate (32) | reserved         |L | rs2(5) | rs1(5) | rd(5)   | kind(8) |
- * +-----------------------+------------------+--+--------+--------+---------+---------+
+ * 63                    32 31    28 27    24 23  22    18 17    13 12     8 7       0
+ * +-----------------------+--------+--------+--+--------+--------+---------+---------+
+ * | immediate/payload(32) |retired |halfword|F | rs2(5) | rs1(5) | rd(5)   | kind(8) |
+ * +-----------------------+--------+--------+--+--------+--------+---------+---------+
  * </pre>
  *
- * L=0 means a 2-byte guest instruction, L=1 means a 4-byte guest instruction.
+ * <p>{@code halfword} is the total guest byte length divided by two. {@code retired} is the
+ * number of architectural guest instructions represented by the micro-op. {@code F} records the
+ * first guest instruction's length (0=2 bytes, 1=4 bytes), which lets fused control-flow
+ * superinstructions reconstruct the branch instruction PC exactly.
  */
 public final class RiscV32MicroOp {
 
@@ -74,31 +77,65 @@ public final class RiscV32MicroOp {
     public static final int REM = 44;
     public static final int REMU = 45;
 
+    // Two-guest-instruction superinstructions.
+    public static final int LOAD_CONST = 46;
+    public static final int ADDI_CHAIN = 47;
+    public static final int MUL_ADD = 48;
+    public static final int ADDI_BEQ = 49;
+    public static final int ADDI_BNE = 50;
+    public static final int ADDI_BLT = 51;
+    public static final int ADDI_BGE = 52;
+    public static final int ADDI_BLTU = 53;
+    public static final int ADDI_BGEU = 54;
+
     private static final int RD_SHIFT = 8;
     private static final int RS1_SHIFT = 13;
     private static final int RS2_SHIFT = 18;
-    private static final int LENGTH_SHIFT = 23;
+    private static final int FIRST_LENGTH_SHIFT = 23;
+    private static final int TOTAL_HALFWORDS_SHIFT = 24;
+    private static final int RETIRED_SHIFT = 28;
 
     private RiscV32MicroOp() {
     }
 
     public static long pack(int kind, int rd, int rs1, int rs2, int immediate, int instructionBytes) {
+        return pack(kind, rd, rs1, rs2, immediate, instructionBytes, 1, instructionBytes);
+    }
+
+    public static long packSuper(int kind, int rd, int rs1, int rs2, int payload,
+            int totalInstructionBytes, int retiredInstructions, int firstInstructionBytes) {
+        return pack(kind, rd, rs1, rs2, payload, totalInstructionBytes,
+                retiredInstructions, firstInstructionBytes);
+    }
+
+    private static long pack(int kind, int rd, int rs1, int rs2, int payload,
+            int totalInstructionBytes, int retiredInstructions, int firstInstructionBytes) {
         if (kind <= INVALID || kind > 0xff) {
             throw new IllegalArgumentException("invalid micro-op kind: " + kind);
         }
         requireRegister(rd);
         requireRegister(rs1);
         requireRegister(rs2);
-        if (instructionBytes != 2 && instructionBytes != 4) {
-            throw new IllegalArgumentException("instructionBytes must be 2 or 4");
+        if (totalInstructionBytes <= 0 || (totalInstructionBytes & 1) != 0
+                || totalInstructionBytes > 30) {
+            throw new IllegalArgumentException("totalInstructionBytes must be even and in [2,30]");
+        }
+        if (retiredInstructions <= 0 || retiredInstructions > 15) {
+            throw new IllegalArgumentException("retiredInstructions must be in [1,15]");
+        }
+        if (firstInstructionBytes != 2 && firstInstructionBytes != 4) {
+            throw new IllegalArgumentException("firstInstructionBytes must be 2 or 4");
         }
 
+        int halfwords = totalInstructionBytes >>> 1;
         long metadata = (kind & 0xffL)
                 | ((long) rd << RD_SHIFT)
                 | ((long) rs1 << RS1_SHIFT)
                 | ((long) rs2 << RS2_SHIFT)
-                | ((instructionBytes == 4 ? 1L : 0L) << LENGTH_SHIFT);
-        return ((long) immediate << 32) | metadata;
+                | ((firstInstructionBytes == 4 ? 1L : 0L) << FIRST_LENGTH_SHIFT)
+                | ((long) halfwords << TOTAL_HALFWORDS_SHIFT)
+                | ((long) retiredInstructions << RETIRED_SHIFT);
+        return ((long) payload << 32) | metadata;
     }
 
     public static int kind(long op) {
@@ -122,12 +159,37 @@ public final class RiscV32MicroOp {
     }
 
     public static int instructionBytes(long op) {
-        return ((((int) op >>> LENGTH_SHIFT) & 1) == 0) ? 2 : 4;
+        return (((int) op >>> TOTAL_HALFWORDS_SHIFT) & 0xf) << 1;
+    }
+
+    public static int firstInstructionBytes(long op) {
+        return ((((int) op >>> FIRST_LENGTH_SHIFT) & 1) == 0) ? 2 : 4;
+    }
+
+    public static int retiredInstructions(long op) {
+        return ((int) op >>> RETIRED_SHIFT) & 0xf;
+    }
+
+    public static int packSigned16Pair(int low, int high) {
+        if (low < Short.MIN_VALUE || low > Short.MAX_VALUE
+                || high < Short.MIN_VALUE || high > Short.MAX_VALUE) {
+            throw new IllegalArgumentException("pair components must fit signed 16 bits");
+        }
+        return (low & 0xffff) | (high << 16);
+    }
+
+    public static int lowSigned16(int payload) {
+        return (short) payload;
+    }
+
+    public static int highSigned16(int payload) {
+        return (short) (payload >>> 16);
     }
 
     public static boolean terminatesBlock(int kind) {
         return kind == JAL || kind == JALR
-                || (kind >= BEQ && kind <= BGEU);
+                || (kind >= BEQ && kind <= BGEU)
+                || (kind >= ADDI_BEQ && kind <= ADDI_BGEU);
     }
 
     private static void requireRegister(int register) {

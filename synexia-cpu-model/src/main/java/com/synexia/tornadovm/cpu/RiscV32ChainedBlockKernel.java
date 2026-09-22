@@ -124,6 +124,7 @@ public final class RiscV32ChainedBlockKernel {
                     int nextPc = localPc + instructionBytes;
                     int pendingTrap = -1;
                     int pendingTrapValue = 0;
+                    int trapPc = localPc;
                     int retiredBeforeTrap = 0;
 
                     switch (kind) {
@@ -385,10 +386,11 @@ public final class RiscV32ChainedBlockKernel {
                         case RiscV32MicroOp.CSRRWI:
                         case RiscV32MicroOp.CSRRSI:
                         case RiscV32MicroOp.CSRRCI: {
-                            int csrAddress = immediate;
+                            int rawInstruction = immediate;
+                            int csrAddress = rawInstruction >>> 20;
                             if (!csrSupported(csrAddress)) {
                                 pendingTrap = RiscV32.TRAP_ILLEGAL_INSTRUCTION;
-                                pendingTrapValue = csrAddress << 20;
+                                pendingTrapValue = rawInstruction;
                                 break;
                             }
 
@@ -419,7 +421,7 @@ public final class RiscV32ChainedBlockKernel {
                                     counter = newValue;
                                 } else if (!writeCsr(csrs, coreCount, core, csrAddress, newValue)) {
                                     pendingTrap = RiscV32.TRAP_ILLEGAL_INSTRUCTION;
-                                    pendingTrapValue = csrAddress << 20;
+                                    pendingTrapValue = rawInstruction;
                                     break;
                                 }
                             }
@@ -482,6 +484,7 @@ public final class RiscV32ChainedBlockKernel {
                                 if ((target & 1) != 0) {
                                     pendingTrap = RiscV32.TRAP_INSTRUCTION_ADDRESS_MISALIGNED;
                                     pendingTrapValue = target;
+                                    trapPc = branchPc;
                                     // ADDI precedes the faulting branch and has architecturally retired.
                                     retiredBeforeTrap = 1;
                                 } else {
@@ -618,13 +621,14 @@ public final class RiscV32ChainedBlockKernel {
                         reservations.set(core, -1);
 
                         if ((executionFlags & RiscV32.FLAG_VECTOR_TRAPS) != 0) {
-                            enterMachineTrap(csrs, coreCount, core, localPc, pendingTrap, pendingTrapValue);
+                            enterMachineTrap(csrs, coreCount, core, trapPc, pendingTrap, pendingTrapValue);
                             int mtvec = csrs.get(csrIndex(coreCount, core, RiscV32.CSR_SLOT_MTVEC));
                             localPc = machineTrapTarget(mtvec, pendingTrap);
                             // Re-enter the compiled tier at mtvec when possible. If mtvec is not
                             // compiled, the next block lookup will hand the same budget to fallback.
                             reenterCompiledTier = true;
                         } else {
+                            localPc = trapPc;
                             localStatus = RiscV32.STATUS_TRAPPED;
                         }
                         leaveCompiledTier = true;

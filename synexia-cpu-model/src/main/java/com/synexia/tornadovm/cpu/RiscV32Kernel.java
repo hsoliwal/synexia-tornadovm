@@ -49,14 +49,17 @@ public final class RiscV32Kernel {
     public static void runQuantum(IntArray registers, IntArray pc, IntArray status, IntArray trapCause,
             IntArray trapValue, IntArray retiredInstructions, IntArray csrs, IntArray reservations,
             IntArray memory, IntArray decodedInstructions, IntArray decodedRawInstructions,
-            Int8Array decodedInstructionLengths, Int8Array blockValid, Int8Array executionMask,
-            int honorExecutionMask, int codeCacheBase, int codeCacheEnd,
+            Int8Array decodedInstructionLengths, Int8Array blockValid, IntArray executionBudget,
+            int honorExecutionBudget, int codeCacheBase, int codeCacheEnd,
             int wordsPerCore, int executionFlags, int instructionBudget) {
 
         final int coreCount = pc.getSize();
 
         for (@Parallel int core = 0; core < coreCount; core++) {
-            if (honorExecutionMask != 0 && executionMask.get(core) == 0) {
+            int coreInstructionBudget = honorExecutionBudget != 0
+                    ? executionBudget.get(core)
+                    : instructionBudget;
+            if (coreInstructionBudget <= 0) {
                 continue;
             }
             int localStatus = status.get(core);
@@ -70,7 +73,7 @@ public final class RiscV32Kernel {
             int localTrapValue = trapValue.get(core);
             int counter = retiredInstructions.get(core);
 
-            for (int step = 0; step < instructionBudget && localStatus == RiscV32.STATUS_RUNNING; step++) {
+            for (int step = 0; step < coreInstructionBudget && localStatus == RiscV32.STATUS_RUNNING; step++) {
                 if ((executionFlags & RiscV32.FLAG_VECTOR_TRAPS) != 0) {
                     int mstatus = csrs.get(csrIndex(coreCount, core, RiscV32.CSR_SLOT_MSTATUS));
                     if ((mstatus & RiscV32.MSTATUS_MIE) != 0) {

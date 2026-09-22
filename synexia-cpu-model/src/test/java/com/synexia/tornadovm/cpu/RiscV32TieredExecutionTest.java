@@ -255,7 +255,8 @@ public class RiscV32TieredExecutionTest {
         assertEquals(RiscV32.TRAP_ECALL_M_MODE, machine.csr(0, RiscV32.CSR_MCAUSE));
         assertEquals(RiscV32.TRAP_BREAKPOINT, machine.trapCause(0));
         assertEquals(0, machine.tierFallbackBudget().get(0));
-        assertTrue(machine.compiledBlockExecutions(0) >= 5);
+        // ECALL vectors but does not retire, so its trap-only block is not counted.
+        assertTrue(machine.compiledBlockExecutions(0) >= 4);
     }
 
     @Test

@@ -13,9 +13,12 @@ import uk.ac.manchester.tornado.api.types.arrays.LongArray;
 /**
  * Host-side mechanical compiler from canonical RV32 instructions to packed basic-block micro-ops.
  *
- * <p>The compiler deliberately handles only side-effect semantics that the block kernel implements
- * directly. System/CSR, FENCE and AMO instructions form tier boundaries and fall back to the full
- * architectural interpreter.
+ * <p>The compiler deliberately handles only side-effect semantics that the compiled kernel
+ * implements directly. System/CSR, FENCE and AMO instructions form tier boundaries and fall back
+ * to the full architectural interpreter.
+ *
+ * <p>Safe adjacent instruction patterns are fused into superinstructions. Fusion never crosses a
+ * basic-block leader, so every externally reachable guest instruction remains a valid entry point.
  */
 public final class RiscV32BlockCompiler {
 
@@ -49,7 +52,7 @@ public final class RiscV32BlockCompiler {
         boolean[] leaders = new boolean[slots];
         leaders[0] = true;
 
-        // First pass: establish basic-block leaders from direct control flow and tier boundaries.
+        // First pass: establish every externally reachable basic-block entry before fusion.
         int pc = machine.codeCacheBase();
         for (int slot = 0; slot < slots;) {
             int length = lengths.get(slot) & 0xff;
@@ -83,48 +86,84 @@ public final class RiscV32BlockCompiler {
         long[] tempOps = new long[slots];
         int[] tempBlockSlot = new int[slots];
         int[] tempBlockFirst = new int[slots];
-        int[] tempBlockCount = new int[slots];
+        int[] tempBlockMicroOps = new int[slots];
+        int[] tempBlockGuestInstructions = new int[slots];
         int blockCount = 0;
         int operationCount = 0;
 
-        // Second pass: compile maximal supported blocks bounded by leaders/control flow/size.
+        // Second pass: compile maximal supported blocks, fusing only within leader boundaries.
         for (int startSlot = 0; startSlot < slots; startSlot++) {
             if (!leaders[startSlot] || (lengths.get(startSlot) & 0xff) == 0) {
                 continue;
             }
 
             int currentSlot = startSlot;
-            int count = 0;
+            int guestInstructionCount = 0;
+            int microOpCount = 0;
             int firstOperation = operationCount;
-            while (currentSlot < slots && count < maxBlockInstructions) {
-                if (count > 0 && leaders[currentSlot]) {
+
+            while (currentSlot < slots && guestInstructionCount < maxBlockInstructions) {
+                if (guestInstructionCount > 0 && leaders[currentSlot]) {
                     break;
                 }
 
-                int length = lengths.get(currentSlot) & 0xff;
-                if (length == 0) {
+                int firstLength = lengths.get(currentSlot) & 0xff;
+                if (firstLength == 0) {
                     break;
                 }
-                int instruction = instructions.get(currentSlot);
-                long op = compileInstruction(instruction, length);
+
+                int firstInstruction = instructions.get(currentSlot);
+                int firstKind = microOpKind(firstInstruction);
+                if (firstKind == RiscV32MicroOp.INVALID) {
+                    break;
+                }
+
+                int nextSlot = currentSlot + (firstLength >>> 1);
+                long fused = 0;
+                int secondLength = 0;
+
+                if (guestInstructionCount + 2 <= maxBlockInstructions
+                        && nextSlot < slots
+                        && !leaders[nextSlot]) {
+                    secondLength = lengths.get(nextSlot) & 0xff;
+                    if (secondLength != 0) {
+                        int secondInstruction = instructions.get(nextSlot);
+                        fused = tryFuse(firstInstruction, firstLength,
+                                secondInstruction, secondLength);
+                    }
+                }
+
+                if (fused != 0) {
+                    tempOps[operationCount++] = fused;
+                    microOpCount++;
+                    guestInstructionCount += RiscV32MicroOp.retiredInstructions(fused);
+                    currentSlot += RiscV32MicroOp.instructionBytes(fused) >>> 1;
+                    if (RiscV32MicroOp.terminatesBlock(RiscV32MicroOp.kind(fused))) {
+                        break;
+                    }
+                    continue;
+                }
+
+                long op = compileInstruction(firstInstruction, firstLength);
                 if (op == 0) {
                     break;
                 }
 
                 tempOps[operationCount++] = op;
-                count++;
-                int kind = RiscV32MicroOp.kind(op);
-                currentSlot += length >>> 1;
+                microOpCount++;
+                guestInstructionCount++;
+                currentSlot = nextSlot;
 
-                if (RiscV32MicroOp.terminatesBlock(kind)) {
+                if (RiscV32MicroOp.terminatesBlock(firstKind)) {
                     break;
                 }
             }
 
-            if (count > 0) {
+            if (guestInstructionCount > 0) {
                 tempBlockSlot[blockCount] = startSlot;
                 tempBlockFirst[blockCount] = firstOperation;
-                tempBlockCount[blockCount] = count;
+                tempBlockMicroOps[blockCount] = microOpCount;
+                tempBlockGuestInstructions[blockCount] = guestInstructionCount;
                 blockCount++;
             }
         }
@@ -136,14 +175,88 @@ public final class RiscV32BlockCompiler {
 
         for (int block = 0; block < blockCount; block++) {
             blockBySlot.set(tempBlockSlot[block], block + 1);
-            descriptors.set(block, RiscV32BlockProgram.descriptor(tempBlockFirst[block], tempBlockCount[block]));
+            descriptors.set(block, RiscV32BlockProgram.descriptor(
+                    tempBlockFirst[block],
+                    tempBlockMicroOps[block],
+                    tempBlockGuestInstructions[block]));
             valid.set(block, (byte) 1);
         }
         for (int op = 0; op < operationCount; op++) {
             microOps.set(op, tempOps[op]);
         }
 
-        return new RiscV32BlockProgram(blockBySlot, descriptors, valid, microOps, blockCount, operationCount);
+        return new RiscV32BlockProgram(
+                blockBySlot, descriptors, valid, microOps, blockCount, operationCount);
+    }
+
+    private static long tryFuse(int firstInstruction, int firstLength,
+            int secondInstruction, int secondLength) {
+        int firstKind = microOpKind(firstInstruction);
+        int secondKind = microOpKind(secondInstruction);
+        if (secondKind == RiscV32MicroOp.INVALID) {
+            return 0;
+        }
+
+        int firstRd = (firstInstruction >>> 7) & 0x1f;
+        int firstRs1 = (firstInstruction >>> 15) & 0x1f;
+        int firstRs2 = (firstInstruction >>> 20) & 0x1f;
+        int secondRd = (secondInstruction >>> 7) & 0x1f;
+        int secondRs1 = (secondInstruction >>> 15) & 0x1f;
+        int secondRs2 = (secondInstruction >>> 20) & 0x1f;
+        int totalBytes = firstLength + secondLength;
+
+        // LUI rd,upper ; ADDI rd,rd,lo -> materialize the final constant directly.
+        if (firstKind == RiscV32MicroOp.LUI
+                && secondKind == RiscV32MicroOp.ADDI
+                && firstRd != 0
+                && secondRd == firstRd
+                && secondRs1 == firstRd) {
+            int value = (firstInstruction & 0xfffff000) + immediateI(secondInstruction);
+            return RiscV32MicroOp.packSuper(
+                    RiscV32MicroOp.LOAD_CONST, firstRd, 0, 0, value,
+                    totalBytes, 2, firstLength);
+        }
+
+        // ADDI rd,src,a ; ADDI rd,rd,b -> one add with a+b modulo 2^32.
+        if (firstKind == RiscV32MicroOp.ADDI
+                && secondKind == RiscV32MicroOp.ADDI
+                && firstRd != 0
+                && secondRd == firstRd
+                && secondRs1 == firstRd) {
+            int combined = immediateI(firstInstruction) + immediateI(secondInstruction);
+            return RiscV32MicroOp.packSuper(
+                    RiscV32MicroOp.ADDI_CHAIN, firstRd, firstRs1, 0, combined,
+                    totalBytes, 2, firstLength);
+        }
+
+        // MUL rd,a,b ; ADD rd,rd,c (or ADD rd,c,rd) -> product plus third source.
+        if (firstKind == RiscV32MicroOp.MUL
+                && secondKind == RiscV32MicroOp.ADD
+                && firstRd != 0
+                && secondRd == firstRd
+                && (secondRs1 == firstRd || secondRs2 == firstRd)) {
+            int other = secondRs1 == firstRd ? secondRs2 : secondRs1;
+            return RiscV32MicroOp.packSuper(
+                    RiscV32MicroOp.MUL_ADD, firstRd, firstRs1, firstRs2, other,
+                    totalBytes, 2, firstLength);
+        }
+
+        // ADDI rd,src,delta ; BRANCH rd,other,target. This is the common counted-loop shape.
+        if (firstKind == RiscV32MicroOp.ADDI
+                && firstRd != 0
+                && secondKind >= RiscV32MicroOp.BEQ
+                && secondKind <= RiscV32MicroOp.BGEU
+                && secondRs1 == firstRd) {
+            int payload = RiscV32MicroOp.packSigned16Pair(
+                    immediateI(firstInstruction), immediateB(secondInstruction));
+            int fusedKind = RiscV32MicroOp.ADDI_BEQ
+                    + (secondKind - RiscV32MicroOp.BEQ);
+            return RiscV32MicroOp.packSuper(
+                    fusedKind, firstRd, firstRs1, secondRs2, payload,
+                    totalBytes, 2, firstLength);
+        }
+
+        return 0;
     }
 
     private static void markLeader(boolean[] leaders, int slot) {
@@ -193,8 +306,9 @@ public final class RiscV32BlockCompiler {
                 break;
         }
 
-        // Shift micro-ops need only the shift amount, not the encoded funct7 bits.
-        if (kind == RiscV32MicroOp.SLLI || kind == RiscV32MicroOp.SRLI || kind == RiscV32MicroOp.SRAI) {
+        if (kind == RiscV32MicroOp.SLLI
+                || kind == RiscV32MicroOp.SRLI
+                || kind == RiscV32MicroOp.SRAI) {
             immediate = (instruction >>> 20) & 0x1f;
         }
 

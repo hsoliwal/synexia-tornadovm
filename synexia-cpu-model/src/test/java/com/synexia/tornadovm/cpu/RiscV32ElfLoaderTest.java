@@ -57,6 +57,36 @@ public class RiscV32ElfLoaderTest {
     }
 
     @Test
+    public void preparesTierDirectlyFromExecutableElfSegment() {
+        int[] program = {
+                addi(1, 0, 41),
+                addi(1, 1, 1),
+                sw(1, 0, 128),
+                ebreak()
+        };
+        byte[] elf = executable(program, 32);
+
+        RiscV32Machine machine = new RiscV32Machine(4, 512);
+        RiscV32ElfImage image = RiscV32ElfLoader.loadAllPrepared(machine, elf, 16);
+
+        assertEquals(0, image.entryPoint());
+        assertEquals(0, image.executableBase());
+        assertEquals(32, image.executableEnd());
+        assertEquals(32, image.executableBytes());
+        assertEquals(true, machine.hasCodeCache());
+        assertEquals(true, machine.hasBlockCache());
+        assertEquals(3, machine.compilationStats().compiledGuestInstructions());
+        assertEquals(2, machine.compilationStats().microOps());
+
+        RiscV32ExecutionResult result = new JvmTieredRiscV32Executor().execute(machine, 16, 4);
+        assertEquals(true, result.allStopped());
+        for (int core = 0; core < machine.cores(); core++) {
+            assertEquals(42, machine.register(core, 1));
+            assertEquals(42, machine.readWord(core, 128));
+        }
+    }
+
+    @Test
     public void rejectsNonRiscVElf() {
         byte[] elf = executable(new int[] { ebreak() }, 4);
         put16(elf, 18, 62); // EM_X86_64

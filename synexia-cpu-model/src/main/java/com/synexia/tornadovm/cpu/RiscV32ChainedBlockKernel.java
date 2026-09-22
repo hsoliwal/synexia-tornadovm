@@ -242,6 +242,176 @@ public final class RiscV32ChainedBlockKernel {
                             break;
                         }
 
+                        case RiscV32MicroOp.FENCE:
+                            // Isolated per-core RAM has no weaker architectural ordering to expose.
+                            break;
+
+                        case RiscV32MicroOp.LR_W:
+                        case RiscV32MicroOp.SC_W:
+                        case RiscV32MicroOp.AMOSWAP_W:
+                        case RiscV32MicroOp.AMOADD_W:
+                        case RiscV32MicroOp.AMOXOR_W:
+                        case RiscV32MicroOp.AMOAND_W:
+                        case RiscV32MicroOp.AMOOR_W:
+                        case RiscV32MicroOp.AMOMIN_W:
+                        case RiscV32MicroOp.AMOMAX_W:
+                        case RiscV32MicroOp.AMOMINU_W:
+                        case RiscV32MicroOp.AMOMAXU_W: {
+                            int address = readRegister(registers, coreCount, core, rs1);
+                            int source2 = readRegister(registers, coreCount, core, rs2);
+                            boolean loadReserved = kind == RiscV32MicroOp.LR_W;
+
+                            if ((address & 3) != 0) {
+                                pendingTrap = loadReserved
+                                        ? RiscV32.TRAP_LOAD_ADDRESS_MISALIGNED
+                                        : RiscV32.TRAP_STORE_ADDRESS_MISALIGNED;
+                                pendingTrapValue = address;
+                            } else if (!validAddress(address, 4, memoryBytes)) {
+                                pendingTrap = loadReserved
+                                        ? RiscV32.TRAP_LOAD_ACCESS_FAULT
+                                        : RiscV32.TRAP_STORE_ACCESS_FAULT;
+                                pendingTrapValue = address;
+                            } else {
+                                int oldValue = load32(memory, coreCount, core, address);
+                                if (kind == RiscV32MicroOp.LR_W) {
+                                    reservations.set(core, address);
+                                    writeRegister(registers, coreCount, core, rd, oldValue);
+                                } else if (kind == RiscV32MicroOp.SC_W) {
+                                    if (reservations.get(core) == address) {
+                                        store32(memory, coreCount, core, address, source2);
+                                        writeRegister(registers, coreCount, core, rd, 0);
+                                        if (invalidateCompiledCode(decodedInstructionLengths, blockValid,
+                                                codeCacheBase, codeCacheEnd, address, 4)) {
+                                            leaveCompiledTier = true;
+                                        }
+                                    } else {
+                                        writeRegister(registers, coreCount, core, rd, 1);
+                                    }
+                                    reservations.set(core, -1);
+                                } else {
+                                    int newValue;
+                                    if (kind == RiscV32MicroOp.AMOSWAP_W) {
+                                        newValue = source2;
+                                    } else if (kind == RiscV32MicroOp.AMOADD_W) {
+                                        newValue = oldValue + source2;
+                                    } else if (kind == RiscV32MicroOp.AMOXOR_W) {
+                                        newValue = oldValue ^ source2;
+                                    } else if (kind == RiscV32MicroOp.AMOAND_W) {
+                                        newValue = oldValue & source2;
+                                    } else if (kind == RiscV32MicroOp.AMOOR_W) {
+                                        newValue = oldValue | source2;
+                                    } else if (kind == RiscV32MicroOp.AMOMIN_W) {
+                                        newValue = oldValue < source2 ? oldValue : source2;
+                                    } else if (kind == RiscV32MicroOp.AMOMAX_W) {
+                                        newValue = oldValue > source2 ? oldValue : source2;
+                                    } else if (kind == RiscV32MicroOp.AMOMINU_W) {
+                                        newValue = lessThanUnsigned(oldValue, source2) ? oldValue : source2;
+                                    } else {
+                                        newValue = lessThanUnsigned(oldValue, source2) ? source2 : oldValue;
+                                    }
+                                    store32(memory, coreCount, core, address, newValue);
+                                    writeRegister(registers, coreCount, core, rd, oldValue);
+                                    reservations.set(core, -1);
+                                    if (invalidateCompiledCode(decodedInstructionLengths, blockValid,
+                                            codeCacheBase, codeCacheEnd, address, 4)) {
+                                        leaveCompiledTier = true;
+                                    }
+                                }
+                            }
+                            break;
+                        }
+
+                        case RiscV32MicroOp.ECALL:
+                            pendingTrap = RiscV32.TRAP_ECALL_M_MODE;
+                            break;
+
+                        case RiscV32MicroOp.EBREAK:
+                            if ((executionFlags & RiscV32.FLAG_EBREAK_HALT) != 0) {
+                                localStatus = RiscV32.STATUS_HALTED;
+                                localTrap = RiscV32.TRAP_BREAKPOINT;
+                                localTrapValue = localPc;
+                            } else {
+                                pendingTrap = RiscV32.TRAP_BREAKPOINT;
+                                pendingTrapValue = localPc;
+                            }
+                            break;
+
+                        case RiscV32MicroOp.MRET: {
+                            int mstatusIndex = csrIndex(coreCount, core, RiscV32.CSR_SLOT_MSTATUS);
+                            int mstatus = csrs.get(mstatusIndex);
+                            boolean mpie = (mstatus & RiscV32.MSTATUS_MPIE) != 0;
+                            mstatus &= ~(RiscV32.MSTATUS_MIE
+                                    | RiscV32.MSTATUS_MPIE
+                                    | RiscV32.MSTATUS_MPP_MASK);
+                            if (mpie) {
+                                mstatus |= RiscV32.MSTATUS_MIE;
+                            }
+                            mstatus |= RiscV32.MSTATUS_MPIE;
+                            csrs.set(mstatusIndex, mstatus);
+
+                            int target = csrs.get(csrIndex(coreCount, core, RiscV32.CSR_SLOT_MEPC));
+                            if ((target & 1) != 0) {
+                                pendingTrap = RiscV32.TRAP_INSTRUCTION_ADDRESS_MISALIGNED;
+                                pendingTrapValue = target;
+                            } else {
+                                nextPc = target;
+                            }
+                            break;
+                        }
+
+                        case RiscV32MicroOp.WFI:
+                            localStatus = RiscV32.STATUS_WAITING;
+                            break;
+
+                        case RiscV32MicroOp.CSRRW:
+                        case RiscV32MicroOp.CSRRS:
+                        case RiscV32MicroOp.CSRRC:
+                        case RiscV32MicroOp.CSRRWI:
+                        case RiscV32MicroOp.CSRRSI:
+                        case RiscV32MicroOp.CSRRCI: {
+                            int csrAddress = immediate;
+                            if (!csrSupported(csrAddress)) {
+                                pendingTrap = RiscV32.TRAP_ILLEGAL_INSTRUCTION;
+                                pendingTrapValue = csrAddress << 20;
+                                break;
+                            }
+
+                            int oldValue = readCsr(csrs, coreCount, core, csrAddress, counter);
+                            boolean immediateForm = kind >= RiscV32MicroOp.CSRRWI;
+                            int source = immediateForm
+                                    ? rs1
+                                    : readRegister(registers, coreCount, core, rs1);
+                            int newValue = oldValue;
+                            boolean write = false;
+
+                            if (kind == RiscV32MicroOp.CSRRW || kind == RiscV32MicroOp.CSRRWI) {
+                                newValue = source;
+                                write = true;
+                            } else if (kind == RiscV32MicroOp.CSRRS || kind == RiscV32MicroOp.CSRRSI) {
+                                if (source != 0) {
+                                    newValue = oldValue | source;
+                                    write = true;
+                                }
+                            } else if (source != 0) {
+                                newValue = oldValue & ~source;
+                                write = true;
+                            }
+
+                            if (write) {
+                                if (csrAddress == RiscV32.CSR_MCYCLE
+                                        || csrAddress == RiscV32.CSR_MINSTRET) {
+                                    counter = newValue;
+                                } else if (!writeCsr(csrs, coreCount, core, csrAddress, newValue)) {
+                                    pendingTrap = RiscV32.TRAP_ILLEGAL_INSTRUCTION;
+                                    pendingTrapValue = csrAddress << 20;
+                                    break;
+                                }
+                            }
+
+                            writeRegister(registers, coreCount, core, rd, oldValue);
+                            break;
+                        }
+
                         case RiscV32MicroOp.LOAD_CONST:
                             writeRegister(registers, coreCount, core, rd, immediate);
                             break;
@@ -487,6 +657,51 @@ public final class RiscV32ChainedBlockKernel {
 
     private static int csrIndex(int coreCount, int core, int slot) {
         return slot * coreCount + core;
+    }
+
+    private static boolean csrSupported(int address) {
+        return RiscV32.csrSlot(address) >= 0
+                || address == RiscV32.CSR_MISA
+                || address == RiscV32.CSR_MHARTID
+                || address == RiscV32.CSR_MCYCLE
+                || address == RiscV32.CSR_MINSTRET
+                || address == RiscV32.CSR_CYCLE
+                || address == RiscV32.CSR_INSTRET;
+    }
+
+    private static int readCsr(IntArray csrs, int coreCount, int core, int address, int counter) {
+        int slot = RiscV32.csrSlot(address);
+        if (slot >= 0) {
+            return csrs.get(csrIndex(coreCount, core, slot));
+        }
+        switch (address) {
+            case RiscV32.CSR_MISA:
+                return RiscV32.MISA_RV32_IMAC;
+            case RiscV32.CSR_MHARTID:
+                return core;
+            case RiscV32.CSR_MCYCLE:
+            case RiscV32.CSR_MINSTRET:
+            case RiscV32.CSR_CYCLE:
+            case RiscV32.CSR_INSTRET:
+                return counter;
+            default:
+                return 0;
+        }
+    }
+
+    private static boolean writeCsr(IntArray csrs, int coreCount, int core, int address, int value) {
+        int slot = RiscV32.csrSlot(address);
+        if (slot < 0) {
+            return false;
+        }
+        if (address == RiscV32.CSR_MTVEC) {
+            int mode = value & 3;
+            if (mode > 1) {
+                return false;
+            }
+        }
+        csrs.set(csrIndex(coreCount, core, slot), value);
+        return true;
     }
 
     private static boolean lessThanUnsigned(int left, int right) {

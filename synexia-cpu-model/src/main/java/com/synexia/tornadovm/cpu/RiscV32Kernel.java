@@ -129,8 +129,6 @@ public final class RiscV32Kernel {
                     int rs1 = (instruction >>> 15) & 0x1f;
                     int rs2 = (instruction >>> 20) & 0x1f;
                     int funct7 = instruction >>> 25;
-                    int source1 = readRegister(registers, coreCount, core, rs1);
-                    int source2 = readRegister(registers, coreCount, core, rs2);
 
                     switch (opcode) {
                         case OP_LUI:
@@ -153,7 +151,8 @@ public final class RiscV32Kernel {
                             break;
                         }
 
-                        case OP_JALR:
+                        case OP_JALR: {
+                            int source1 = readRegister(registers, coreCount, core, rs1);
                             if (funct3 != 0) {
                                 pendingTrap = RiscV32.TRAP_ILLEGAL_INSTRUCTION;
                                 pendingTrapValue = rawInstruction;
@@ -168,8 +167,11 @@ public final class RiscV32Kernel {
                                 }
                             }
                             break;
+                        }
 
                         case OP_BRANCH: {
+                            int source1 = readRegister(registers, coreCount, core, rs1);
+                            int source2 = readRegister(registers, coreCount, core, rs2);
                             boolean taken = false;
                             switch (funct3) {
                                 case 0:
@@ -208,6 +210,7 @@ public final class RiscV32Kernel {
                         }
 
                         case OP_LOAD: {
+                            int source1 = readRegister(registers, coreCount, core, rs1);
                             int address = source1 + immediateI(instruction);
                             int width = 0;
                             if (funct3 == 0 || funct3 == 4) {
@@ -254,6 +257,8 @@ public final class RiscV32Kernel {
                         }
 
                         case OP_STORE: {
+                            int source1 = readRegister(registers, coreCount, core, rs1);
+                            int source2 = readRegister(registers, coreCount, core, rs2);
                             int address = source1 + immediateS(instruction);
                             int width = 0;
                             if (funct3 == 0) {
@@ -287,6 +292,7 @@ public final class RiscV32Kernel {
                         }
 
                         case OP_IMM: {
+                            int source1 = readRegister(registers, coreCount, core, rs1);
                             int immediate = immediateI(instruction);
                             int result = 0;
                             boolean valid = true;
@@ -339,6 +345,8 @@ public final class RiscV32Kernel {
                         }
 
                         case OP: {
+                            int source1 = readRegister(registers, coreCount, core, rs1);
+                            int source2 = readRegister(registers, coreCount, core, rs2);
                             int result = 0;
                             boolean valid = true;
                             if (funct7 == 0x01) {
@@ -445,6 +453,8 @@ public final class RiscV32Kernel {
                         }
 
                         case OP_AMO: {
+                            int source1 = readRegister(registers, coreCount, core, rs1);
+                            int source2 = readRegister(registers, coreCount, core, rs2);
                             int address = source1;
                             if (funct3 != 2) {
                                 pendingTrap = RiscV32.TRAP_ILLEGAL_INSTRUCTION;
@@ -576,7 +586,7 @@ public final class RiscV32Kernel {
                                     pendingTrapValue = rawInstruction;
                                 } else {
                                     int oldValue = readCsr(csrs, retiredInstructions, coreCount, core, csrAddress, counter);
-                                    int source = funct3 >= 5 ? rs1 : source1;
+                                    int source = funct3 >= 5 ? rs1 : readRegister(registers, coreCount, core, rs1);
                                     int newValue = oldValue;
                                     boolean write = false;
 
@@ -660,7 +670,7 @@ public final class RiscV32Kernel {
     }
 
     private static int readRegister(IntArray registers, int coreCount, int core, int register) {
-        return registers.get(register * coreCount + core);
+        return register == 0 ? 0 : registers.get(register * coreCount + core);
     }
 
     private static void writeRegister(IntArray registers, int coreCount, int core, int register, int value) {

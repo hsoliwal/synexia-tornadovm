@@ -109,6 +109,27 @@ poll, subsequent dispatches simply see its device-resident non-running status an
 reduces synchronization/PCIe traffic without changing the maximum number of instruction quanta.
 The polling interval is configurable in the executor constructor.
 
+## Shared predecode tier
+
+`RiscV32Machine.buildCodeCache(core, base, length)` builds a shared canonical instruction image for
+a code range. Each cached halfword slot stores the raw guest instruction, the already-expanded
+canonical RV32 instruction and its 2/4-byte length.
+
+When the cache hits, the kernel skips guest RAM instruction fetch and skips RV32C expansion. The
+cache is shared across all virtual cores, so thousands of cores executing the same image do not each
+repeat the same compressed-decode work.
+
+The cache preserves correctness rather than assuming code is immutable forever:
+
+- host writes into a cached range invalidate overlapping entries;
+- guest SB/SH/SW and successful SC/AMO writes invalidate overlapping entries on-device;
+- an invalidated entry falls straight back to architectural memory fetch/decode;
+- invalidation metadata is copied back at the end of Tornado execution so a later execution plan
+  does not resurrect stale code.
+
+This predecode layer is intentionally a tier, not a replacement for the interpreter. It provides the
+metadata and invalidation boundary needed for later basic-block/superinstruction compilation.
+
 An explicit `TornadoDevice` may be supplied to `TornadoRiscV32Executor`; otherwise TornadoVM's
 normal default-device selection applies.
 
@@ -136,7 +157,9 @@ The hot loop intentionally uses a small set of predictable primitives:
 6. compressed code support to reduce fetch bandwidth
 7. device-resident architectural state
 8. batched host status polling
-9. one shared semantic kernel for JVM reference and accelerator execution
+9. shared canonical instruction predecode across virtual cores
+10. self-modifying-code invalidation with interpreter fallback
+11. one shared semantic kernel for JVM reference and accelerator execution
 
 The largest remaining GPU cost is ISA control-flow divergence: different virtual cores executing
 different opcodes necessarily cause SIMT lanes to take different decoder paths. Workload grouping

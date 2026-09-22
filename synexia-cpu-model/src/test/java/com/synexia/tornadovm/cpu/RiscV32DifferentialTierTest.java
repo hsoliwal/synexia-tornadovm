@@ -34,7 +34,7 @@ import org.junit.Test;
 public class RiscV32DifferentialTierTest {
 
     private static final int MEMORY_BYTES = 4096;
-    private static final int DATA_BASE = 2048;
+    private static final int DATA_BASE = 2044;
     private static final int GENERATED_INSTRUCTIONS = 256;
 
     @Test

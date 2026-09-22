@@ -24,12 +24,12 @@ public final class JvmTieredRiscV32Executor implements RiscV32Executor {
         long start = System.nanoTime();
         int quanta = 0;
         while (quanta < maxQuanta && !machine.allStopped()) {
-            RiscV32BlockKernel.runOneBlock(
+            RiscV32ChainedBlockKernel.runBlocks(
                     machine.registers(), machine.pc(), machine.status(), machine.trapCause(),
                     machine.trapValue(), machine.retiredInstructions(), machine.csrs(), machine.reservations(),
                     machine.memory(), machine.decodedInstructionLengths(), machine.blockBySlot(),
                     machine.blockDescriptors(), machine.blockValid(), machine.microOps(),
-                    machine.tierFallbackMask(), machine.compiledBlockExecutionsArray(),
+                    machine.tierFallbackBudget(), machine.compiledBlockExecutionsArray(),
                     machine.codeCacheBase(), machine.wordsPerCore(),
                     machine.executionFlags(), instructionsPerQuantum);
 

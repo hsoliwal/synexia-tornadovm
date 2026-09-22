@@ -217,6 +217,31 @@ public final class RiscV32Machine {
         return compiledBlockCount > 0;
     }
 
+    public RiscV32CompilationStats compilationStats() {
+        int cachedInstructions = 0;
+        for (int slot = 0; slot < decodedInstructionLengths.getSize(); slot++) {
+            if ((decodedInstructionLengths.get(slot) & 0xff) != 0) {
+                cachedInstructions++;
+            }
+        }
+
+        int compiledGuestInstructions = 0;
+        for (int block = 0; block < compiledBlockCount; block++) {
+            compiledGuestInstructions += RiscV32BlockProgram.guestInstructionCount(
+                    blockDescriptors.get(block));
+        }
+
+        int fusedInstructions = Math.max(0, compiledGuestInstructions - compiledOperationCount);
+        return new RiscV32CompilationStats(
+                Math.max(0, codeCacheEnd - codeCacheBase),
+                cachedInstructions,
+                compiledBlockCount,
+                compiledGuestInstructions,
+                compiledOperationCount,
+                fusedInstructions,
+                totalCompiledBlockExecutions());
+    }
+
     public boolean hasCodeCache() {
         return codeCacheEnd > codeCacheBase;
     }

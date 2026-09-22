@@ -308,7 +308,8 @@ public final class RiscV32BlockCompiler {
                 immediate = immediateS(instruction);
                 break;
             case OP_SYSTEM:
-                immediate = instruction >>> 20;
+                // Preserve the full instruction so precise illegal-CSR traps can reproduce mtval.
+                immediate = instruction;
                 break;
             default:
                 break;

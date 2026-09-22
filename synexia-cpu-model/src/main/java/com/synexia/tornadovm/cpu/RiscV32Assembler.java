@@ -222,6 +222,85 @@ public final class RiscV32Assembler {
         return 0x00100073;
     }
 
+    public static int mret() {
+        return 0x30200073;
+    }
+
+    public static int wfi() {
+        return 0x10500073;
+    }
+
+    public static int csrrw(int rd, int csr, int rs1) {
+        return csr(1, rd, csr, rs1);
+    }
+
+    public static int csrrs(int rd, int csr, int rs1) {
+        return csr(2, rd, csr, rs1);
+    }
+
+    public static int csrrc(int rd, int csr, int rs1) {
+        return csr(3, rd, csr, rs1);
+    }
+
+    public static int csrrwi(int rd, int csr, int immediate) {
+        zimm(immediate);
+        return csr(5, rd, csr, immediate);
+    }
+
+    public static int csrrsi(int rd, int csr, int immediate) {
+        zimm(immediate);
+        return csr(6, rd, csr, immediate);
+    }
+
+    public static int csrrci(int rd, int csr, int immediate) {
+        zimm(immediate);
+        return csr(7, rd, csr, immediate);
+    }
+
+    public static int lrW(int rd, int rs1) {
+        return amo(0x02, rd, rs1, 0);
+    }
+
+    public static int scW(int rd, int rs1, int rs2) {
+        return amo(0x03, rd, rs1, rs2);
+    }
+
+    public static int amoSwapW(int rd, int rs1, int rs2) {
+        return amo(0x01, rd, rs1, rs2);
+    }
+
+    public static int amoAddW(int rd, int rs1, int rs2) {
+        return amo(0x00, rd, rs1, rs2);
+    }
+
+    public static int amoXorW(int rd, int rs1, int rs2) {
+        return amo(0x04, rd, rs1, rs2);
+    }
+
+    public static int amoAndW(int rd, int rs1, int rs2) {
+        return amo(0x0c, rd, rs1, rs2);
+    }
+
+    public static int amoOrW(int rd, int rs1, int rs2) {
+        return amo(0x08, rd, rs1, rs2);
+    }
+
+    public static int amoMinW(int rd, int rs1, int rs2) {
+        return amo(0x10, rd, rs1, rs2);
+    }
+
+    public static int amoMaxW(int rd, int rs1, int rs2) {
+        return amo(0x14, rd, rs1, rs2);
+    }
+
+    public static int amoMinuW(int rd, int rs1, int rs2) {
+        return amo(0x18, rd, rs1, rs2);
+    }
+
+    public static int amoMaxuW(int rd, int rs1, int rs2) {
+        return amo(0x1c, rd, rs1, rs2);
+    }
+
     public static int nop() {
         return addi(0, 0, 0);
     }
@@ -265,6 +344,32 @@ public final class RiscV32Assembler {
         register(rs1);
         register(rs2);
         return (funct7 << 25) | (rs2 << 20) | (rs1 << 15) | (funct3 << 12) | (rd << 7) | 0x33;
+    }
+
+    private static int csr(int funct3, int rd, int csr, int source) {
+        register(rd);
+        if (funct3 < 5) {
+            register(source);
+        } else {
+            zimm(source);
+        }
+        if (csr < 0 || csr > 0xfff) {
+            throw new IllegalArgumentException("CSR address must be in [0,4095]: " + csr);
+        }
+        return (csr << 20) | (source << 15) | (funct3 << 12) | (rd << 7) | 0x73;
+    }
+
+    private static int amo(int funct5, int rd, int rs1, int rs2) {
+        register(rd);
+        register(rs1);
+        register(rs2);
+        return (funct5 << 27) | (rs2 << 20) | (rs1 << 15) | (2 << 12) | (rd << 7) | 0x2f;
+    }
+
+    private static void zimm(int value) {
+        if (value < 0 || value > 31) {
+            throw new IllegalArgumentException("CSR immediate must be in [0,31]: " + value);
+        }
     }
 
     private static void register(int register) {

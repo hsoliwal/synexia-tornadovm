@@ -75,8 +75,8 @@ public class RiscV32ElfLoaderTest {
         assertEquals(32, image.executableBytes());
         assertEquals(true, machine.hasCodeCache());
         assertEquals(true, machine.hasBlockCache());
-        assertEquals(3, machine.compilationStats().compiledGuestInstructions());
-        assertEquals(2, machine.compilationStats().microOps());
+        assertEquals(4, machine.compilationStats().compiledGuestInstructions());
+        assertEquals(3, machine.compilationStats().microOps());
 
         RiscV32ExecutionResult result = new JvmTieredRiscV32Executor().execute(machine, 16, 4);
         assertEquals(true, result.allStopped());

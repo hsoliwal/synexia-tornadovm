@@ -76,7 +76,7 @@ public final class TornadoRiscV32Executor implements RiscV32Executor {
         int quanta = 0;
         TornadoExecutionResult lastResult = null;
         try {
-            while (quanta < maxQuanta) {
+            while (quanta < maxQuanta && !machine.allStopped()) {
                 lastResult = plan.execute();
                 quanta++;
 

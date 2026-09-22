@@ -33,6 +33,15 @@ public final class RiscV32 {
     public static final int TRAP_STORE_ACCESS_FAULT = 7;
     public static final int TRAP_ECALL_M_MODE = 11;
 
+    public static final int INTERRUPT_FLAG = 0x80000000;
+    public static final int INTERRUPT_MACHINE_SOFTWARE = INTERRUPT_FLAG | 3;
+    public static final int INTERRUPT_MACHINE_TIMER = INTERRUPT_FLAG | 7;
+    public static final int INTERRUPT_MACHINE_EXTERNAL = INTERRUPT_FLAG | 11;
+
+    public static final int MIP_MSIP = 1 << 3;
+    public static final int MIP_MTIP = 1 << 7;
+    public static final int MIP_MEIP = 1 << 11;
+
     /** Stop on traps instead of vectoring into mtvec. Useful for bare-metal tests/debugging. */
     public static final int FLAG_VECTOR_TRAPS = 1;
     /** Treat EBREAK as an environment halt. Clear this flag for architectural breakpoint traps. */
@@ -134,6 +143,12 @@ public final class RiscV32 {
                 return "STORE_ACCESS_FAULT";
             case TRAP_ECALL_M_MODE:
                 return "ECALL_M_MODE";
+            case INTERRUPT_MACHINE_SOFTWARE:
+                return "MACHINE_SOFTWARE_INTERRUPT";
+            case INTERRUPT_MACHINE_TIMER:
+                return "MACHINE_TIMER_INTERRUPT";
+            case INTERRUPT_MACHINE_EXTERNAL:
+                return "MACHINE_EXTERNAL_INTERRUPT";
             default:
                 return "CAUSE(" + cause + ")";
         }

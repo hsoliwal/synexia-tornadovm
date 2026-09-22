@@ -10,6 +10,7 @@ import java.util.Objects;
 
 import uk.ac.manchester.tornado.api.types.arrays.Int8Array;
 import uk.ac.manchester.tornado.api.types.arrays.IntArray;
+import uk.ac.manchester.tornado.api.types.arrays.LongArray;
 
 /**
  * Dense host-side owner of the arrays consumed by {@link RiscV32Kernel}.
@@ -47,6 +48,14 @@ public final class RiscV32Machine {
     private int codeCacheBase;
     private int codeCacheEnd;
 
+    private IntArray blockBySlot;
+    private LongArray blockDescriptors;
+    private Int8Array blockValid;
+    private LongArray microOps;
+    private Int8Array tierFallbackMask;
+    private int compiledBlockCount;
+    private int compiledOperationCount;
+
     private int executionFlags;
 
     public RiscV32Machine(int cores, int memoryBytesPerCore) {
@@ -78,6 +87,14 @@ public final class RiscV32Machine {
         this.decodedInstructionLengths = new Int8Array(1);
         this.codeCacheBase = 0;
         this.codeCacheEnd = 0;
+        this.blockBySlot = new IntArray(1);
+        this.blockDescriptors = new LongArray(1);
+        this.blockValid = new Int8Array(1);
+        this.microOps = new LongArray(1);
+        this.tierFallbackMask = new Int8Array(cores);
+        this.tierFallbackMask.init((byte) 1);
+        this.compiledBlockCount = 0;
+        this.compiledOperationCount = 0;
         this.executionFlags = RiscV32.DEFAULT_EXECUTION_FLAGS;
         resetAll(0);
     }
@@ -148,6 +165,38 @@ public final class RiscV32Machine {
 
     public int codeCacheEnd() {
         return codeCacheEnd;
+    }
+
+    public IntArray blockBySlot() {
+        return blockBySlot;
+    }
+
+    public LongArray blockDescriptors() {
+        return blockDescriptors;
+    }
+
+    public Int8Array blockValid() {
+        return blockValid;
+    }
+
+    public LongArray microOps() {
+        return microOps;
+    }
+
+    public Int8Array tierFallbackMask() {
+        return tierFallbackMask;
+    }
+
+    public int compiledBlockCount() {
+        return compiledBlockCount;
+    }
+
+    public int compiledOperationCount() {
+        return compiledOperationCount;
+    }
+
+    public boolean hasBlockCache() {
+        return compiledBlockCount > 0;
     }
 
     public boolean hasCodeCache() {
@@ -221,6 +270,7 @@ public final class RiscV32Machine {
      */
     public void buildCodeCache(int sourceCore, int byteAddress, int byteLength) {
         core(sourceCore);
+        clearBlockCache();
         requireHalfwordAddress(byteAddress);
         if (byteLength <= 0 || (byteLength & 1) != 0) {
             throw new IllegalArgumentException("byteLength must be positive and two-byte aligned");
@@ -266,11 +316,39 @@ public final class RiscV32Machine {
     }
 
     public void clearCodeCache() {
+        clearBlockCache();
         decodedInstructions = new IntArray(1);
         decodedRawInstructions = new IntArray(1);
         decodedInstructionLengths = new Int8Array(1);
         codeCacheBase = 0;
         codeCacheEnd = 0;
+    }
+
+    /**
+     * Compile the current canonical code cache into packed basic blocks.
+     *
+     * @param maxBlockInstructions
+     *         maximum guest instructions placed in one compiled block
+     */
+    public void buildBlockCache(int maxBlockInstructions) {
+        RiscV32BlockProgram program = RiscV32BlockCompiler.compile(this, maxBlockInstructions);
+        blockBySlot = program.blockBySlot();
+        blockDescriptors = program.blockDescriptors();
+        blockValid = program.blockValid();
+        microOps = program.microOps();
+        compiledBlockCount = program.blockCount();
+        compiledOperationCount = program.operationCount();
+        tierFallbackMask.init((byte) 1);
+    }
+
+    public void clearBlockCache() {
+        blockBySlot = new IntArray(1);
+        blockDescriptors = new LongArray(1);
+        blockValid = new Int8Array(1);
+        microOps = new LongArray(1);
+        compiledBlockCount = 0;
+        compiledOperationCount = 0;
+        tierFallbackMask.init((byte) 1);
     }
 
     public void loadProgramAll(int byteAddress, int... words) {
@@ -564,6 +642,9 @@ public final class RiscV32Machine {
         int lastSlot = (last - codeCacheBase) >>> 1;
         for (int slot = firstSlot; slot <= lastSlot; slot++) {
             decodedInstructionLengths.set(slot, (byte) 0);
+        }
+        if (hasBlockCache()) {
+            blockValid.init((byte) 0);
         }
     }
 

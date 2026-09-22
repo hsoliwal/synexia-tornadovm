@@ -58,19 +58,21 @@ public final class TornadoRiscV32Executor implements RiscV32Executor {
                         machine.registers(), machine.pc(), machine.status(), machine.trapCause(), machine.trapValue(),
                         machine.retiredInstructions(), machine.csrs(), machine.reservations(), machine.memory(),
                         machine.decodedInstructions(), machine.decodedRawInstructions(),
-                        machine.decodedInstructionLengths(), machine.blockValid(), machine.tierFallbackMask())
+                        machine.decodedInstructionLengths(), machine.blockValid(), machine.tierFallbackMask(),
+                        machine.tierFallbackBudget())
                 .task("run-quantum", RiscV32Kernel::runQuantum,
                         machine.registers(), machine.pc(), machine.status(), machine.trapCause(), machine.trapValue(),
                         machine.retiredInstructions(), machine.csrs(), machine.reservations(), machine.memory(),
                         machine.decodedInstructions(), machine.decodedRawInstructions(),
-                        machine.decodedInstructionLengths(), machine.blockValid(), machine.tierFallbackMask(), 0,
+                        machine.decodedInstructionLengths(), machine.blockValid(), machine.tierFallbackBudget(), 0,
                         machine.codeCacheBase(), machine.codeCacheEnd(),
                         machine.wordsPerCore(), machine.executionFlags(), instructionsPerQuantum)
                 .transferToHost(DataTransferMode.UNDER_DEMAND,
                         machine.status(), machine.trapCause(), machine.trapValue(),
                         machine.registers(), machine.pc(), machine.retiredInstructions(),
                         machine.csrs(), machine.reservations(), machine.memory(),
-                        machine.decodedInstructionLengths(), machine.blockValid(), machine.tierFallbackMask());
+                        machine.decodedInstructionLengths(), machine.blockValid(), machine.tierFallbackMask(),
+                        machine.tierFallbackBudget());
 
         ImmutableTaskGraph immutableGraph = graph.snapshot();
         TornadoExecutionPlan plan = new TornadoExecutionPlan(immutableGraph);
@@ -99,7 +101,8 @@ public final class TornadoRiscV32Executor implements RiscV32Executor {
                         machine.status(), machine.trapCause(), machine.trapValue(),
                         machine.registers(), machine.pc(), machine.retiredInstructions(),
                         machine.csrs(), machine.reservations(), machine.memory(),
-                        machine.decodedInstructionLengths(), machine.blockValid(), machine.tierFallbackMask());
+                        machine.decodedInstructionLengths(), machine.blockValid(), machine.tierFallbackMask(),
+                        machine.tierFallbackBudget());
             }
 
             long elapsed = System.nanoTime() - start;

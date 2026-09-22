@@ -23,7 +23,7 @@ public final class JvmRiscV32Executor implements RiscV32Executor {
             RiscV32Kernel.runQuantum(machine.registers(), machine.pc(), machine.status(), machine.trapCause(),
                     machine.trapValue(), machine.retiredInstructions(), machine.csrs(), machine.reservations(),
                     machine.memory(), machine.decodedInstructions(), machine.decodedRawInstructions(),
-                    machine.decodedInstructionLengths(), machine.blockValid(), machine.tierFallbackMask(), 0,
+                    machine.decodedInstructionLengths(), machine.blockValid(), machine.tierFallbackBudget(), 0,
                     machine.codeCacheBase(), machine.codeCacheEnd(),
                     machine.wordsPerCore(), machine.executionFlags(), instructionsPerQuantum);
             quanta++;

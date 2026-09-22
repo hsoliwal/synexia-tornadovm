@@ -49,12 +49,16 @@ public final class RiscV32Kernel {
     public static void runQuantum(IntArray registers, IntArray pc, IntArray status, IntArray trapCause,
             IntArray trapValue, IntArray retiredInstructions, IntArray csrs, IntArray reservations,
             IntArray memory, IntArray decodedInstructions, IntArray decodedRawInstructions,
-            Int8Array decodedInstructionLengths, int codeCacheBase, int codeCacheEnd,
+            Int8Array decodedInstructionLengths, Int8Array blockValid, Int8Array executionMask,
+            int honorExecutionMask, int codeCacheBase, int codeCacheEnd,
             int wordsPerCore, int executionFlags, int instructionBudget) {
 
         final int coreCount = pc.getSize();
 
         for (@Parallel int core = 0; core < coreCount; core++) {
+            if (honorExecutionMask != 0 && executionMask.get(core) == 0) {
+                continue;
+            }
             int localStatus = status.get(core);
             if (localStatus != RiscV32.STATUS_RUNNING) {
                 continue;
@@ -307,7 +311,7 @@ public final class RiscV32Kernel {
                                 } else {
                                     store32(memory, coreCount, core, address, source2);
                                 }
-                                invalidateCodeCache(decodedInstructionLengths, codeCacheBase, codeCacheEnd, address, width);
+                                invalidateCodeCache(decodedInstructionLengths, blockValid, codeCacheBase, codeCacheEnd, address, width);
                                 reservations.set(core, -1);
                             }
                             break;
@@ -512,7 +516,7 @@ public final class RiscV32Kernel {
                                     case 0x03: // SC.W
                                         if (reservations.get(core) == address) {
                                             store32(memory, coreCount, core, address, source2);
-                                            invalidateCodeCache(decodedInstructionLengths, codeCacheBase, codeCacheEnd, address, 4);
+                                            invalidateCodeCache(decodedInstructionLengths, blockValid, codeCacheBase, codeCacheEnd, address, 4);
                                             writeRegister(registers, coreCount, core, rd, 0);
                                         } else {
                                             writeRegister(registers, coreCount, core, rd, 1);
@@ -556,7 +560,7 @@ public final class RiscV32Kernel {
 
                                 if (pendingTrap < 0 && store) {
                                     store32(memory, coreCount, core, address, newValue);
-                                    invalidateCodeCache(decodedInstructionLengths, codeCacheBase, codeCacheEnd, address, 4);
+                                    invalidateCodeCache(decodedInstructionLengths, blockValid, codeCacheBase, codeCacheEnd, address, 4);
                                     writeRegister(registers, coreCount, core, rd, oldValue);
                                     reservations.set(core, -1);
                                 }
@@ -799,8 +803,8 @@ public final class RiscV32Kernel {
         return (address >>> 2) * coreCount + core;
     }
 
-    private static void invalidateCodeCache(Int8Array lengths, int cacheBase, int cacheEnd,
-            int address, int width) {
+    private static void invalidateCodeCache(Int8Array lengths, Int8Array blockValid,
+            int cacheBase, int cacheEnd, int address, int width) {
         if (cacheEnd <= cacheBase || address >= cacheEnd || address + width <= cacheBase) {
             return;
         }
@@ -817,6 +821,9 @@ public final class RiscV32Kernel {
         int lastSlot = (last - cacheBase) >>> 1;
         for (int slot = firstSlot; slot <= lastSlot; slot++) {
             lengths.set(slot, (byte) 0);
+        }
+        for (int block = 0; block < blockValid.getSize(); block++) {
+            blockValid.set(block, (byte) 0);
         }
     }
 

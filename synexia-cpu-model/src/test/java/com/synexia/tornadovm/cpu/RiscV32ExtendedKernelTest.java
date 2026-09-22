@@ -121,6 +121,21 @@ public class RiscV32ExtendedKernelTest {
     }
 
     @Test
+    public void misalignedLrUsesLoadAddressFault() {
+        RiscV32Machine machine = new RiscV32Machine(1, 256);
+        machine.loadProgramAll(0,
+                addi(1, 0, 2),
+                lrW(2, 1),
+                ebreak());
+
+        executor.execute(machine, 16, 2);
+
+        assertEquals(RiscV32.STATUS_TRAPPED, machine.status(0));
+        assertEquals(RiscV32.TRAP_LOAD_ADDRESS_MISALIGNED, machine.trapCause(0));
+        assertEquals(2, machine.trapValue(0));
+    }
+
+    @Test
     public void atomicReadModifyWriteAndReservation() {
         RiscV32Machine machine = new RiscV32Machine(1, 512);
         machine.writeWord(0, 128, 7);

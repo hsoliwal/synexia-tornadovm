@@ -804,7 +804,11 @@ public final class RiscV32Kernel {
         if (cacheEnd <= cacheBase || address >= cacheEnd || address + width <= cacheBase) {
             return;
         }
-        int first = address < cacheBase ? cacheBase : address;
+        // A 32-bit instruction may begin one halfword before the first byte being modified.
+        // Invalidate that predecessor slot too so a write to an instruction's upper half cannot
+        // leave a stale canonical entry at its start address.
+        int candidateFirst = address - 2;
+        int first = candidateFirst < cacheBase ? cacheBase : candidateFirst;
         int last = address + width - 1;
         if (last >= cacheEnd) {
             last = cacheEnd - 1;

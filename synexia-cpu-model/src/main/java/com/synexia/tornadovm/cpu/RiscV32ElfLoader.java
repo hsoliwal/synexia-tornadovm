@@ -103,8 +103,8 @@ public final class RiscV32ElfLoader {
         if (programHeaderOffset < 0 || tableEnd < programHeaderOffset || tableEnd > elf.length) {
             throw new IllegalArgumentException("ELF program-header table is outside the image");
         }
-        if ((entry & 3) != 0) {
-            throw new IllegalArgumentException("RV32 entry point must be 4-byte aligned: " + entry);
+        if ((entry & 1) != 0) {
+            throw new IllegalArgumentException("RV32IMAC entry point must be 2-byte aligned: " + entry);
         }
 
         return new Header(entry, (int) programHeaderOffset, programHeaderEntrySize, programHeaderCount);

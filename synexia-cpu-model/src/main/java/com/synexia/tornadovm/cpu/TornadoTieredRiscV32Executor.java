@@ -63,13 +63,13 @@ public final class TornadoTieredRiscV32Executor implements RiscV32Executor {
                         machine.retiredInstructions(), machine.csrs(), machine.reservations(), machine.memory(),
                         machine.decodedInstructions(), machine.decodedRawInstructions(),
                         machine.decodedInstructionLengths(), machine.blockBySlot(), machine.blockDescriptors(),
-                        machine.blockValid(), machine.microOps(), machine.tierFallbackMask(),
+                        machine.blockValid(), machine.microOps(), machine.tierFallbackBudget(),
                         machine.compiledBlockExecutionsArray())
-                .task("compiled-block", RiscV32BlockKernel::runOneBlock,
+                .task("compiled-block", RiscV32ChainedBlockKernel::runBlocks,
                         machine.registers(), machine.pc(), machine.status(), machine.trapCause(), machine.trapValue(),
                         machine.retiredInstructions(), machine.csrs(), machine.reservations(), machine.memory(),
                         machine.decodedInstructionLengths(), machine.blockBySlot(), machine.blockDescriptors(),
-                        machine.blockValid(), machine.microOps(), machine.tierFallbackMask(),
+                        machine.blockValid(), machine.microOps(), machine.tierFallbackBudget(),
                         machine.compiledBlockExecutionsArray(), machine.codeCacheBase(),
                         machine.wordsPerCore(), machine.executionFlags(), instructionsPerQuantum)
                 .task("interpreter-fallback", RiscV32Kernel::runQuantum,

@@ -45,6 +45,18 @@ public class RiscV32ElfLoaderTest {
     }
 
     @Test
+    public void acceptsHalfwordAlignedCompressedEntryPoint() {
+        byte[] elf = executable(new int[] { ebreak() }, 4);
+        put32(elf, 24, 2);
+
+        RiscV32Machine machine = new RiscV32Machine(1, 256);
+        int entry = RiscV32ElfLoader.loadAll(machine, elf);
+
+        assertEquals(2, entry);
+        assertEquals(2, machine.pc(0));
+    }
+
+    @Test
     public void rejectsNonRiscVElf() {
         byte[] elf = executable(new int[] { ebreak() }, 4);
         put16(elf, 18, 62); // EM_X86_64

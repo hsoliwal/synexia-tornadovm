@@ -214,6 +214,32 @@ public final class RiscV32Machine {
         }
     }
 
+    public void loadHalfwordsAll(int byteAddress, int... halfwords) {
+        Objects.requireNonNull(halfwords, "halfwords");
+        for (int core = 0; core < cores; core++) {
+            loadHalfwords(core, byteAddress, halfwords);
+        }
+    }
+
+    public void loadHalfwords(int core, int byteAddress, int... halfwords) {
+        core(core);
+        Objects.requireNonNull(halfwords, "halfwords");
+        requireHalfwordAddress(byteAddress);
+        long byteLength = (long) halfwords.length * 2L;
+        if (byteLength > Integer.MAX_VALUE) {
+            throw new IllegalArgumentException("compressed program is too large");
+        }
+        if (halfwords.length > 0) {
+            requireMemoryRange(byteAddress, (int) byteLength);
+        }
+        for (int offset = 0; offset < halfwords.length; offset++) {
+            int value = halfwords[offset] & 0xffff;
+            int address = byteAddress + offset * 2;
+            writeByte(core, address, value);
+            writeByte(core, address + 1, value >>> 8);
+        }
+    }
+
     public int register(int core, int register) {
         core(core);
         register(register);

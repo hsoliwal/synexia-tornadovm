@@ -64,6 +64,31 @@ public final class RiscV32Kernel {
             int counter = retiredInstructions.get(core);
 
             for (int step = 0; step < instructionBudget && localStatus == RiscV32.STATUS_RUNNING; step++) {
+                if ((executionFlags & RiscV32.FLAG_VECTOR_TRAPS) != 0) {
+                    int mstatus = csrs.get(csrIndex(coreCount, core, RiscV32.CSR_SLOT_MSTATUS));
+                    if ((mstatus & RiscV32.MSTATUS_MIE) != 0) {
+                        int enabledPending = csrs.get(csrIndex(coreCount, core, RiscV32.CSR_SLOT_MIE))
+                                & csrs.get(csrIndex(coreCount, core, RiscV32.CSR_SLOT_MIP));
+                        int interruptCause = 0;
+                        if ((enabledPending & RiscV32.MIP_MEIP) != 0) {
+                            interruptCause = RiscV32.INTERRUPT_MACHINE_EXTERNAL;
+                        } else if ((enabledPending & RiscV32.MIP_MSIP) != 0) {
+                            interruptCause = RiscV32.INTERRUPT_MACHINE_SOFTWARE;
+                        } else if ((enabledPending & RiscV32.MIP_MTIP) != 0) {
+                            interruptCause = RiscV32.INTERRUPT_MACHINE_TIMER;
+                        }
+                        if (interruptCause != 0) {
+                            localTrap = interruptCause;
+                            localTrapValue = 0;
+                            reservations.set(core, -1);
+                            enterMachineTrap(csrs, coreCount, core, localPc, interruptCause, 0);
+                            int mtvec = csrs.get(csrIndex(coreCount, core, RiscV32.CSR_SLOT_MTVEC));
+                            localPc = machineTrapTarget(mtvec, interruptCause);
+                            continue;
+                        }
+                    }
+                }
+
                 int pendingTrap = -1;
                 int pendingTrapValue = 0;
                 int instruction = 0;
@@ -610,7 +635,8 @@ public final class RiscV32Kernel {
 
                     if ((executionFlags & RiscV32.FLAG_VECTOR_TRAPS) != 0) {
                         enterMachineTrap(csrs, coreCount, core, localPc, pendingTrap, pendingTrapValue);
-                        localPc = csrs.get(csrIndex(coreCount, core, RiscV32.CSR_SLOT_MTVEC)) & ~3;
+                        int mtvec = csrs.get(csrIndex(coreCount, core, RiscV32.CSR_SLOT_MTVEC));
+                        localPc = machineTrapTarget(mtvec, pendingTrap);
                         writeRegister(registers, coreCount, core, 0, 0);
                         continue;
                     }
@@ -696,6 +722,15 @@ public final class RiscV32Kernel {
             return true;
         }
         return false;
+    }
+
+    private static int machineTrapTarget(int mtvec, int cause) {
+        int base = mtvec & ~3;
+        int mode = mtvec & 3;
+        if (mode == 1 && (cause & RiscV32.INTERRUPT_FLAG) != 0) {
+            return base + 4 * (cause & ~RiscV32.INTERRUPT_FLAG);
+        }
+        return base;
     }
 
     private static void enterMachineTrap(IntArray csrs, int coreCount, int core, int pc, int cause, int value) {

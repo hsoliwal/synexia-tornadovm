@@ -52,10 +52,21 @@ public final class RiscV32ExecutionResult {
         return elapsedNanos;
     }
 
+    public double instructionsPerSecond() {
+        return elapsedNanos <= 0 ? 0.0
+                : retiredInstructions * 1_000_000_000.0 / elapsedNanos;
+    }
+
+    public double millionInstructionsPerSecond() {
+        return instructionsPerSecond() / 1_000_000.0;
+    }
+
     @Override
     public String toString() {
         return "RiscV32ExecutionResult{backend='" + backend + "', quanta=" + quanta
                 + ", allStopped=" + allStopped + ", runningCores=" + runningCores
-                + ", retiredInstructions=" + retiredInstructions + ", elapsedNanos=" + elapsedNanos + "}";
+                + ", retiredInstructions=" + retiredInstructions
+                + ", elapsedNanos=" + elapsedNanos
+                + ", millionInstructionsPerSecond=" + millionInstructionsPerSecond() + "}";
     }
 }

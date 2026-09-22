@@ -19,39 +19,52 @@ import uk.ac.manchester.tornado.api.exceptions.TornadoExecutionPlanException;
 /**
  * TornadoVM backend for {@link RiscV32Kernel}.
  *
- * <p>All architectural arrays are copied to the accelerator once. Only the tiny status/cause
- * vectors are copied back after each quantum; register files, PCs, counters and packed RAM remain
- * device-resident until the final under-demand transfer.
+ * <p>Architectural state is uploaded once and remains device-resident. The host polls only the
+ * small status/trap vectors, and by default does that once every eight kernel quanta rather than
+ * after every dispatch. Cores that halt before the next poll are cheap: later dispatches see their
+ * device-resident non-running status and immediately skip them.
  */
 public final class TornadoRiscV32Executor implements RiscV32Executor {
 
     private static final AtomicLong GRAPH_IDS = new AtomicLong();
+    private static final int DEFAULT_STATUS_POLL_INTERVAL = 8;
 
     private final TornadoDevice device;
+    private final int statusPollInterval;
 
     public TornadoRiscV32Executor() {
-        this(null);
+        this(null, DEFAULT_STATUS_POLL_INTERVAL);
     }
 
     public TornadoRiscV32Executor(TornadoDevice device) {
+        this(device, DEFAULT_STATUS_POLL_INTERVAL);
+    }
+
+    public TornadoRiscV32Executor(TornadoDevice device, int statusPollInterval) {
+        if (statusPollInterval <= 0) {
+            throw new IllegalArgumentException("statusPollInterval must be positive");
+        }
         this.device = device;
+        this.statusPollInterval = statusPollInterval;
     }
 
     @Override
     public RiscV32ExecutionResult execute(RiscV32Machine machine, int instructionsPerQuantum, int maxQuanta) {
         JvmRiscV32Executor.validate(machine, instructionsPerQuantum, maxQuanta);
 
-        String graphName = "synexia-rv32im-" + GRAPH_IDS.incrementAndGet();
+        String graphName = "synexia-rv32imac-" + GRAPH_IDS.incrementAndGet();
         TaskGraph graph = new TaskGraph(graphName)
                 .transferToDevice(DataTransferMode.FIRST_EXECUTION,
-                        machine.registers(), machine.pc(), machine.status(), machine.trapCause(),
-                        machine.retiredInstructions(), machine.memory())
+                        machine.registers(), machine.pc(), machine.status(), machine.trapCause(), machine.trapValue(),
+                        machine.retiredInstructions(), machine.csrs(), machine.reservations(), machine.memory())
                 .task("run-quantum", RiscV32Kernel::runQuantum,
-                        machine.registers(), machine.pc(), machine.status(), machine.trapCause(),
-                        machine.retiredInstructions(), machine.memory(), machine.wordsPerCore(), instructionsPerQuantum)
-                .transferToHost(DataTransferMode.EVERY_EXECUTION, machine.status(), machine.trapCause())
+                        machine.registers(), machine.pc(), machine.status(), machine.trapCause(), machine.trapValue(),
+                        machine.retiredInstructions(), machine.csrs(), machine.reservations(), machine.memory(),
+                        machine.wordsPerCore(), machine.executionFlags(), instructionsPerQuantum)
                 .transferToHost(DataTransferMode.UNDER_DEMAND,
-                        machine.registers(), machine.pc(), machine.retiredInstructions(), machine.memory());
+                        machine.status(), machine.trapCause(), machine.trapValue(),
+                        machine.registers(), machine.pc(), machine.retiredInstructions(),
+                        machine.csrs(), machine.reservations(), machine.memory());
 
         ImmutableTaskGraph immutableGraph = graph.snapshot();
         TornadoExecutionPlan plan = new TornadoExecutionPlan(immutableGraph);
@@ -63,14 +76,23 @@ public final class TornadoRiscV32Executor implements RiscV32Executor {
         int quanta = 0;
         TornadoExecutionResult lastResult = null;
         try {
-            while (quanta < maxQuanta && !machine.allStopped()) {
+            while (quanta < maxQuanta) {
                 lastResult = plan.execute();
                 quanta++;
+
+                if (quanta % statusPollInterval == 0 || quanta == maxQuanta) {
+                    lastResult.transferToHost(machine.status(), machine.trapCause(), machine.trapValue());
+                    if (machine.allStopped()) {
+                        break;
+                    }
+                }
             }
 
             if (lastResult != null) {
                 lastResult.transferToHost(
-                        machine.registers(), machine.pc(), machine.retiredInstructions(), machine.memory());
+                        machine.status(), machine.trapCause(), machine.trapValue(),
+                        machine.registers(), machine.pc(), machine.retiredInstructions(),
+                        machine.csrs(), machine.reservations(), machine.memory());
             }
 
             long elapsed = System.nanoTime() - start;

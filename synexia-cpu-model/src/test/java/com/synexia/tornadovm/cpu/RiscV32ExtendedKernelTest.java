@@ -200,6 +200,23 @@ public class RiscV32ExtendedKernelTest {
     }
 
     @Test
+    public void upperHalfWriteInvalidatesPrecedingThirtyTwoBitInstruction() {
+        RiscV32Machine machine = new RiscV32Machine(1, 256);
+        machine.loadProgramAll(0,
+                addi(4, 0, 1),
+                ebreak());
+        machine.buildCodeCache(0, 0, 8);
+
+        // ADDI x4,x0,1 = 0x00100213. Replacing byte 2 changes it to
+        // ADDI x4,x0,2 = 0x00200213. The write starts inside the instruction,
+        // not at its cached start slot.
+        machine.writeByte(0, 2, 0x20);
+
+        executor.execute(machine, 16, 2);
+        assertEquals(2, machine.register(0, 4));
+    }
+
+    @Test
     public void hostWriteInvalidatesSharedCodeCache() {
         RiscV32Machine machine = new RiscV32Machine(1, 256);
         machine.loadProgramAll(0,

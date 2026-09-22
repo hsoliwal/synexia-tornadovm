@@ -53,6 +53,7 @@ public final class RiscV32Machine {
     private Int8Array blockValid;
     private LongArray microOps;
     private Int8Array tierFallbackMask;
+    private IntArray compiledBlockExecutions;
     private int compiledBlockCount;
     private int compiledOperationCount;
 
@@ -93,6 +94,7 @@ public final class RiscV32Machine {
         this.microOps = new LongArray(1);
         this.tierFallbackMask = new Int8Array(cores);
         this.tierFallbackMask.init((byte) 1);
+        this.compiledBlockExecutions = new IntArray(cores);
         this.compiledBlockCount = 0;
         this.compiledOperationCount = 0;
         this.executionFlags = RiscV32.DEFAULT_EXECUTION_FLAGS;
@@ -187,6 +189,23 @@ public final class RiscV32Machine {
         return tierFallbackMask;
     }
 
+    public IntArray compiledBlockExecutionsArray() {
+        return compiledBlockExecutions;
+    }
+
+    public long compiledBlockExecutions(int core) {
+        core(core);
+        return Integer.toUnsignedLong(compiledBlockExecutions.get(core));
+    }
+
+    public long totalCompiledBlockExecutions() {
+        long total = 0;
+        for (int core = 0; core < cores; core++) {
+            total += Integer.toUnsignedLong(compiledBlockExecutions.get(core));
+        }
+        return total;
+    }
+
     public int compiledBlockCount() {
         return compiledBlockCount;
     }
@@ -234,6 +253,7 @@ public final class RiscV32Machine {
         trapCause.init(RiscV32.TRAP_NONE);
         trapValue.init(0);
         retiredInstructions.init(0);
+        compiledBlockExecutions.init(0);
         csrs.init(0);
         reservations.init(-1);
     }
@@ -253,6 +273,7 @@ public final class RiscV32Machine {
         trapCause.set(core, RiscV32.TRAP_NONE);
         trapValue.set(core, 0);
         retiredInstructions.set(core, 0);
+        compiledBlockExecutions.set(core, 0);
         reservations.set(core, -1);
     }
 

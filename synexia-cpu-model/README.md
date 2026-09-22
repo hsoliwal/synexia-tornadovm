@@ -1,211 +1,299 @@
-# Synexia CPU-on-GPU model
+# Synexia CPU-on-GPU
 
-This module implements a dense **RV32IMAC CPU interpreter whose exact Java kernel can run either
-directly on the JVM or through TornadoVM on an accelerator**.
+This module is a Java/TornadoVM **RV32IMAC execution engine designed to turn RISC-V guest code into
+GPU-friendly work rather than permanently interpreting every guest instruction**.
 
-## Execution model
+The architectural interpreter remains the correctness floor. The optimized path is now:
 
-One accelerator work-item represents one independent virtual CPU. The hot state is primitive-only and
-uses a lane-coalesced structure-of-arrays layout:
+```text
+ELF / raw RV32 image
+        |
+        v
+shared canonical decode
+(RV32C -> canonical RV32)
+        |
+        v
+basic-block discovery
+        |
+        v
+safe superinstruction fusion
+        |
+        v
+packed 64-bit micro-op stream
+        |
+        v
+chained compiled blocks on each accelerator lane
+        |
+        +---- missing / invalidated code ----> architectural interpreter
+```
+
+One accelerator lane represents one independent virtual CPU.
+
+## Dense architectural state
+
+The hot state is primitive-only and GPU-coalesced:
 
 - registers: `registers[register * cores + core]`
 - CSRs: `csrs[slot * cores + core]`
 - RAM: `memory[wordAddress * cores + core]`
-- PC, status, trap cause/value, reservation and retired-instruction counters in flat `IntArray` vectors
-- byte-addressable RAM packed four bytes per `int`
-- no maps, collections, reflection, allocation or object-per-instruction/core in the kernel
+- PC/status/trap/reservation/counters: flat primitive Tornado arrays
+- guest RAM: four little-endian guest bytes per Java/Tornado `int`
+- no object per register, instruction, block, map entry, or virtual CPU in device execution
 
-The transposed layout matters on a GPU. When adjacent work-items execute related code, instruction
-fetches and accesses to the same architectural register become adjacent physical loads instead of
-being separated by an entire per-core state block.
+When neighboring lanes execute the same program, accesses to the same guest register and word become
+neighboring device-memory accesses rather than strides across per-core object graphs.
 
-Each virtual core executes a configurable sequential instruction **quantum** inside its work-item.
-Many virtual cores execute those quanta in parallel. This is the boundary between sequential ISA
-semantics and SIMT hardware.
-
-## Implemented ISA
+## Architectural ISA
 
 ### RV32I
 
-- LUI, AUIPC
-- JAL, JALR
-- BEQ/BNE/BLT/BGE/BLTU/BGEU
-- LB/LH/LW/LBU/LHU
-- SB/SH/SW
-- ADDI/SLTI/SLTIU/XORI/ORI/ANDI/SLLI/SRLI/SRAI
-- ADD/SUB/SLL/SLT/SLTU/XOR/SRL/SRA/OR/AND
-- FENCE/FENCE.I for the isolated-core memory model
+LUI, AUIPC, JAL/JALR, all six integer branches, LB/LH/LW/LBU/LHU, SB/SH/SW, immediate
+ALU/compare/shift instructions, register ALU/compare/shift instructions, FENCE and FENCE.I.
 
 ### RV32M
 
-- MUL/MULH/MULHSU/MULHU
-- DIV/DIVU/REM/REMU
+MUL/MULH/MULHSU/MULHU and DIV/DIVU/REM/REMU, including architectural divide-by-zero and signed
+overflow behavior.
 
 ### RV32A
 
-- LR.W / SC.W
-- AMOSWAP.W / AMOADD.W
-- AMOXOR.W / AMOAND.W / AMOOR.W
-- AMOMIN.W / AMOMAX.W / AMOMINU.W / AMOMAXU.W
+LR.W, SC.W, AMOSWAP.W, AMOADD.W, AMOXOR.W, AMOAND.W, AMOOR.W, AMOMIN.W, AMOMAX.W,
+AMOMINU.W and AMOMAXU.W.
 
-The current machine gives every virtual core private RAM, so the A-extension is fully meaningful for
-reservation and read-modify-write semantics inside each virtual machine. Cross-core shared-memory
-coherence is a separate machine-topology layer.
+The current machine topology gives each virtual CPU private RAM. The A extension therefore provides
+correct reservation/read-modify-write semantics inside each virtual machine. Cross-hart coherent
+shared memory is intentionally a separate topology layer.
 
 ### RV32C
 
-The common RV32 compressed integer instruction set is supported, including:
+The common RV32 compressed integer forms are supported, including ADDI4SPN, LW/SW, ADDI/NOP,
+JAL/J, LI/LUI, ADDI16SP, compact shifts/logic, BEQZ/BNEZ, LWSP/SWSP, JR/JALR, MV/ADD and
+EBREAK.
 
-- C.ADDI4SPN, C.LW, C.SW
-- C.NOP/C.ADDI, C.JAL, C.LI, C.LUI, C.ADDI16SP
-- C.SRLI/C.SRAI/C.ANDI, C.SUB/C.XOR/C.OR/C.AND
-- C.J, C.BEQZ, C.BNEZ
-- C.SLLI, C.LWSP, C.SWSP
-- C.JR/C.JALR, C.MV/C.ADD, C.EBREAK
+Thirty-two-bit instructions beginning on a two-byte boundary are fetched correctly even when they
+span two packed RAM words.
 
-Compressed instructions are expanded inside the kernel to equivalent 32-bit operations and then
-flow through the same main decoder. Thirty-two-bit instructions starting at a 2-byte boundary are
-handled correctly, including the case where the instruction straddles two packed memory words.
+## Machine mode
 
-## Machine-mode support
+The dense machine CSR bank implements:
 
-The dense CSR bank supports:
-
-- mstatus
-- misa (RV32IMAC)
-- mie / mip
-- mtvec
-- mscratch
-- mepc
-- mcause
-- mtval
+- mstatus, misa, mie, mip
+- mtvec, mscratch
+- mepc, mcause, mtval
 - mhartid
 - cycle/instret and machine aliases
 
-Implemented system behavior includes CSR read/modify/write instructions, ECALL, EBREAK, MRET and WFI.
+Implemented system behavior includes CSR read/modify/write instructions and immediate forms, ECALL,
+configurable EBREAK halt/breakpoint behavior, MRET and WFI.
 
-By default traps stop the core, which is convenient for deterministic tests and bare-metal tooling.
-Calling `machine.withTrapVectoring(true)` enables machine trap entry through `mtvec`, updates
-`mepc/mcause/mtval/mstatus`, and permits handler return through MRET. EBREAK remains an environment
-halt by default; `withEbreakHalt(false)` turns it into an architectural breakpoint trap instead.
+Machine software, timer and external interrupts can be injected. Interrupt selection uses
+`mstatus.MIE`, `mie` and `mip`. Direct and vectored `mtvec` modes are implemented. WFI cores
+can be woken without resetting architectural state.
 
-WFI moves a virtual core to `WAITING`. The host can either wake such cores explicitly with
-`resumeWaitingCores()` or inject machine-software, machine-timer, or machine-external interrupts.
-Pending interrupts are arbitrated at instruction boundaries using `mstatus.MIE`, `mie`, and
-`mip`. Direct and vectored `mtvec` modes are supported; vectored mode dispatches interrupts to
-`BASE + 4 * cause`.
+The compiled tier executes these same A/CSR/system operations directly; they are no longer automatic
+interpreter boundaries. CSR operations remain basic-block boundaries so interrupt priority is
+re-evaluated immediately after control-state changes.
 
-## Backends
+## Tier 0: architectural interpreter
 
-`JvmRiscV32Executor` invokes `RiscV32Kernel.runQuantum` as ordinary Java and is the deterministic
-reference implementation.
+`RiscV32Kernel.runQuantum` is the reference implementation and fallback.
 
-`TornadoRiscV32Executor` submits that **same method** as a TornadoVM task. Architectural state is
-uploaded once and remains device-resident. Status/trap vectors are under-demand transfers rather
-than unconditional copy-outs.
+It remains useful for:
 
-The Tornado executor polls status every eight quanta by default. If a core halts before the next
-poll, subsequent dispatches simply see its device-resident non-running status and skip it. This
-reduces synchronization/PCIe traffic without changing the maximum number of instruction quanta.
-The polling interval is configurable in the executor constructor.
+- uncached code
+- code invalidated by self-modification
+- unsupported future ISA extensions
+- differential verification of compiled execution
 
-## Shared predecode tier
+`JvmRiscV32Executor` runs it as ordinary Java.
+`TornadoRiscV32Executor` submits the same kernel through TornadoVM.
 
-`RiscV32Machine.buildCodeCache(core, base, length)` builds a shared canonical instruction image for
-a code range. Each cached halfword slot stores the raw guest instruction, the already-expanded
-canonical RV32 instruction and its 2/4-byte length.
+## Tier 1: shared canonical decode
 
-When the cache hits, the kernel skips guest RAM instruction fetch and skips RV32C expansion. The
-cache is shared across all virtual cores, so thousands of cores executing the same image do not each
-repeat the same compressed-decode work.
+`RiscV32Machine.buildCodeCache(core, base, length)` builds one shared instruction image for all
+virtual cores running the same program.
 
-The cache preserves correctness rather than assuming code is immutable forever:
+Each halfword-indexed slot stores:
 
-- host writes into a cached range invalidate overlapping entries;
-- guest SB/SH/SW and successful SC/AMO writes invalidate overlapping entries on-device;
-- an invalidated entry falls straight back to architectural memory fetch/decode;
-- invalidation metadata is copied back at the end of Tornado execution so a later execution plan
-  does not resurrect stale code.
+- raw guest instruction bits
+- canonical 32-bit RV32 instruction
+- original guest length: two or four bytes
 
-This predecode layer is intentionally a tier, not a replacement for the interpreter. It provides the
-metadata and invalidation boundary needed for later basic-block/superinstruction compilation.
+A cache hit eliminates per-core guest instruction fetch and RV32C expansion.
 
-An explicit `TornadoDevice` may be supplied to `TornadoRiscV32Executor`; otherwise TornadoVM's
-normal default-device selection applies.
+Self-modifying code is conservative and correct:
 
-## Binary images
+- host writes invalidate overlapping entries
+- guest SB/SH/SW, successful SC and AMO stores invalidate overlapping entries
+- writes touching the upper half of a 32-bit instruction also invalidate its preceding start slot
+- invalidated entries fall back to architectural fetch/decode
+- device invalidation state is synchronized back before a later plan can reuse stale code
 
-`RiscV32ElfLoader` loads standard ELF32 little-endian RISC-V `ET_EXEC` / `ET_DYN` images.
+## Tier 2: compiled basic blocks
 
-- PT_LOAD segment loading
+`RiscV32Machine.buildBlockCache(maxBlockInstructions)` mechanically lowers canonical code into
+primitive block metadata plus one contiguous `LongArray` micro-op stream.
+
+A halfword-indexed entry map resolves guest PC directly to a block descriptor. A descriptor records:
+
+- first micro-op offset
+- packed micro-op count
+- original guest-instruction count
+
+No AST or block object is present in the accelerator representation.
+
+Direct branch/jump targets and fall-through addresses are discovered before fusion. Fusion never
+crosses a basic-block leader, so another edge can still enter every legal guest instruction boundary.
+
+## Tier 3: 64-bit superinstructions
+
+Each micro-op is one packed `long` containing operation kind, rd/rs1/rs2, total guest byte length,
+first-instruction length, architectural retire count and a 32-bit payload/immediate.
+
+Safe adjacent patterns currently fuse into one device operation:
+
+- LUI + ADDI -> LOAD_CONST
+- ADDI + ADDI on the same destination -> ADDI_CHAIN
+- MUL + consuming/overwriting ADD -> MUL_ADD
+- ADDI + BEQ/BNE/BLT/BGE/BLTU/BGEU -> counted-loop superinstructions
+
+A fused operation still advances guest PC by the original byte count and retires the exact original
+number of guest instructions. The packed representation therefore reduces dispatch without changing
+architectural counters.
+
+`RiscV32CompilationStats` exposes code bytes, cached instructions, compiled coverage, blocks,
+micro-op count, fusion reduction and runtime compiled-block executions.
+
+## Tier 4: chained block execution
+
+`RiscV32ChainedBlockKernel` does not stop after one block. Each accelerator lane repeatedly resolves
+and executes compiled blocks until:
+
+- its guest-instruction quantum is consumed
+- it leaves compiled code
+- self-modifying code invalidates the compiled image
+- a non-vectorable/missing path requires fallback
+- the virtual CPU halts or waits
+
+The remaining instruction budget is tracked per core. If fallback is needed, the interpreter consumes
+**only that remainder**. A core never re-executes instructions already retired by the compiled tier.
+
+Machine interrupts and synchronous vectored traps are entered directly in the compiled kernel. If
+`mtvec` points to compiled code, the lane re-enters compiled execution without a host round trip.
+
+`JvmTieredRiscV32Executor` is the reference tiered executor.
+`TornadoTieredRiscV32Executor` runs the same block + fallback model through TornadoVM.
+
+## Persistent accelerator sessions
+
+For long-lived emulation, use `TornadoRiscV32Session` rather than repeatedly constructing one-shot
+execution plans.
+
+A session:
+
+- precompiles the Tornado execution plan
+- preserves compiled kernels and device allocations across calls
+- can execute fixed quanta entirely device-resident
+- can synchronize only status/trap state
+- can refresh the small control state after interrupt injection or WFI wakeup
+- can explicitly refresh all state after host-side mutations
+- performs a full sync only when requested or at `executeUntilStop` completion
+
+This removes execution-plan reconstruction from the steady-state hot path.
+
+## Production facade
+
+`RiscV32ExecutionEngine` automatically selects the tiered executor when a block cache is installed
+and otherwise uses the interpreter.
+
+Typical raw-image setup:
+
+```java
+RiscV32ExecutionEngine engine = RiscV32ExecutionEngine.tornado();
+RiscV32CompilationStats stats =
+        engine.prepareCode(machine, 0, codeBase, codeLength, 64);
+RiscV32ExecutionResult result = engine.execute(machine, 512, 10000);
+```
+
+## ELF loading
+
+`RiscV32ElfLoader` supports ELF32 little-endian RISC-V ET_EXEC/ET_DYN flat images:
+
+- PT_LOAD loading
 - physical-address preference with virtual-address fallback
 - deterministic BSS zeroing
 - per-core image installation
-- reset to the ELF entry point
+- RV32C-compatible two-byte entry alignment
+- executable PT_LOAD range discovery
 
-`RiscV32Machine.loadHalfwords*` additionally supports direct 16-bit compressed program images.
+`RiscV32ElfLoader.loadAllPrepared(...)` performs:
 
-## Performance design
+```text
+ELF load -> executable span discovery -> shared code cache -> block compilation
+```
 
-The hot loop intentionally uses a small set of predictable primitives:
+and returns `RiscV32ElfImage` metadata.
 
-1. lane-coalesced register/CSR/RAM arrays
-2. packed little-endian word memory
-3. no per-instruction object allocation
-4. no hash tables, maps or sparse Java objects
-5. local register values cached in scalar variables during decode
-6. compressed code support to reduce fetch bandwidth
-7. device-resident architectural state
-8. batched host status polling
-9. shared canonical instruction predecode across virtual cores
-10. self-modifying-code invalidation with interpreter fallback
-11. one shared semantic kernel for JVM reference and accelerator execution
+The loader deliberately does not pretend ET_DYN relocation, an MMU, or a Linux device platform exists.
 
-The largest remaining GPU cost is ISA control-flow divergence: different virtual cores executing
-different opcodes necessarily cause SIMT lanes to take different decoder paths. Workload grouping
-and larger coherent batches are therefore more valuable than adding object-oriented abstraction to
-the instruction loop.
+## Measuring performance
 
-## Build and test
+`RiscV32ExecutionResult` reports elapsed nanoseconds, instructions/second and MIPS.
 
-From the repository root on the JDK 22+ profile:
+The reproducible harness compares interpreter and tiered semantics before printing throughput:
+
+```bash
+# JVM reference comparison
+java -m synexia.cpu.model/com.synexia.tornadovm.cpu.RiscV32PerformanceDemo jvm 4096 1000 512
+
+# TornadoVM accelerator comparison
+tornado -m synexia.cpu.model/com.synexia.tornadovm.cpu.RiscV32PerformanceDemo tornado 4096 1000 512
+```
+
+Do not infer GPU speedup from hosted CI. Measure on the target GPU because useful crossover depends
+on virtual-core count, control-flow coherence, kernel-launch cost, memory bandwidth and backend.
+
+## Correctness gates
+
+Tests cover:
+
+- RV32I/M arithmetic, branches, loads/stores
+- compressed fetch/decode including cross-word 32-bit fetch
+- A-extension reservation and AMO behavior
+- machine CSRs, trap entry, MRET and WFI
+- direct/vectored interrupt delivery
+- ELF loading/BSS/entry alignment
+- shared-predecode invalidation
+- compiled self-modifying-code invalidation
+- block chaining and exact quantum budgets
+- superinstruction fusion and exact retirement
+- compiled A/CSR/system execution
+- deterministic generated interpreter-vs-tier differential workloads
+
+Build:
 
 ```bash
 ./mvnw -Pjdk22plus -pl synexia-cpu-model -am test -DskipTests=false
 ```
 
-Run the reference demo:
+## Current platform boundary
 
-```bash
-java -m synexia.cpu.model/com.synexia.tornadovm.cpu.RiscV32Demo
-```
+The execution engine is RV32IMAC with M-mode control and interrupt behavior. A complete Linux-capable
+RISC-V platform still requires additive layers around it:
 
-Run through TornadoVM:
+- S/U privilege modes and delegation
+- Sv32 translation, page tables and TLB behavior
+- CLINT/ACLINT and PLIC/APLIC/IMSIC device models
+- UART/virtio/MMIO devices
+- coherent shared-memory multicore topology
+- F/D floating-point register files/instructions
+- V vector register files/instructions
 
-```bash
-tornado -m synexia.cpu.model/com.synexia.tornadovm.cpu.RiscV32Demo tornado
-```
-
-## Scope boundary
-
-This is now an RV32IMAC execution engine with a useful subset of machine-mode control state, not a
-claim that a complete Linux-capable RISC-V platform already exists.
-
-The remaining additive system layers are:
-
-- interrupt-controller/device models (CLINT/ACLINT, PLIC/APLIC/IMSIC) around the implemented
-  machine software/timer/external interrupt injection
-- complete privileged-mode state beyond M-mode, including S/U mode delegation
-- Sv32 page-table/MMU translation and TLB behavior
-- MMIO devices such as CLINT/PLIC/UART/virtio
-- shared-memory/coherent multicore topology
-- floating-point F/D and vector V register files/instructions
-
-Those layers can be added without undoing the dense decoder or the backend-neutral execution
-contract.
+Those are machine/platform extensions, not reasons to put object-heavy abstractions back into the
+instruction hot path.
 
 ## Donor architecture
 
-The design follows the CPU-in-GPU-kernel pattern demonstrated by projects such as RISKY-V
-(RISC-V in GLSL) and Simulacore (x86 interpretation in CUDA), while this implementation remains an
-original Java/TornadoVM implementation rather than a source copy.
+The design follows the established CPU-in-GPU-kernel idea demonstrated by projects such as RISKY-V
+(RISC-V in GLSL) and Simulacore (x86 interpretation in CUDA), while the implementation here is an
+original Java/TornadoVM design rather than copied source.

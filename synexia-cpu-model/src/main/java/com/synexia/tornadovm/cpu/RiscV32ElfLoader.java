@@ -28,6 +28,7 @@ public final class RiscV32ElfLoader {
     private static final int ET_DYN = 3;
     private static final int EM_RISCV = 243;
     private static final int PT_LOAD = 1;
+    private static final int PF_X = 1;
 
     private RiscV32ElfLoader() {
     }
@@ -38,13 +39,35 @@ public final class RiscV32ElfLoader {
      * @return entry point
      */
     public static int loadAll(RiscV32Machine machine, byte[] elf) {
+        return loadAllImage(machine, elf).entryPoint();
+    }
+
+    /**
+     * Load an ELF image into every virtual core and return executable-segment metadata.
+     */
+    public static RiscV32ElfImage loadAllImage(RiscV32Machine machine, byte[] elf) {
         Objects.requireNonNull(machine, "machine");
         Header header = parseHeader(elf);
         for (int core = 0; core < machine.cores(); core++) {
             loadSegments(machine, core, elf, header);
             machine.resetCore(core, header.entry);
         }
-        return header.entry;
+        return imageMetadata(machine, elf, header);
+    }
+
+    /**
+     * Load an ELF image and immediately build the shared predecode/basic-block tier from its
+     * executable PT_LOAD span.
+     */
+    public static RiscV32ElfImage loadAllPrepared(RiscV32Machine machine, byte[] elf,
+            int maxBlockInstructions) {
+        RiscV32ElfImage image = loadAllImage(machine, elf);
+        if (!image.hasExecutableRange()) {
+            throw new IllegalArgumentException("ELF contains no executable PT_LOAD segment");
+        }
+        machine.buildCodeCache(0, image.executableBase(), image.executableBytes());
+        machine.buildBlockCache(maxBlockInstructions);
+        return image;
     }
 
     /**
@@ -53,11 +76,18 @@ public final class RiscV32ElfLoader {
      * @return entry point
      */
     public static int load(RiscV32Machine machine, int core, byte[] elf) {
+        return loadImage(machine, core, elf).entryPoint();
+    }
+
+    /**
+     * Load an ELF image into one virtual core and return executable-segment metadata.
+     */
+    public static RiscV32ElfImage loadImage(RiscV32Machine machine, int core, byte[] elf) {
         Objects.requireNonNull(machine, "machine");
         Header header = parseHeader(elf);
         loadSegments(machine, core, elf, header);
         machine.resetCore(core, header.entry);
-        return header.entry;
+        return imageMetadata(machine, elf, header);
     }
 
     private static Header parseHeader(byte[] elf) {
@@ -153,9 +183,49 @@ public final class RiscV32ElfLoader {
             }
         }
 
-        if (header.entry < 0 || header.entry > machine.memoryBytesPerCore() - 4) {
+        if (header.entry < 0 || header.entry > machine.memoryBytesPerCore() - 2) {
             throw new IllegalArgumentException("ELF entry point is outside virtual-core RAM: " + header.entry);
         }
+    }
+
+    private static RiscV32ElfImage imageMetadata(RiscV32Machine machine, byte[] elf, Header header) {
+        int executableBase = Integer.MAX_VALUE;
+        int executableEnd = -1;
+
+        for (int index = 0; index < header.programHeaderCount; index++) {
+            int offset = header.programHeaderOffset + index * header.programHeaderEntrySize;
+            if ((int) u32(elf, offset) != PT_LOAD) {
+                continue;
+            }
+
+            int flags = (int) u32(elf, offset + 24);
+            if ((flags & PF_X) == 0) {
+                continue;
+            }
+
+            long virtualAddress = u32(elf, offset + 8);
+            long physicalAddress = u32(elf, offset + 12);
+            int destination = address(physicalAddress != 0 ? physicalAddress : virtualAddress,
+                    "executable PT_LOAD address");
+            int bytes = length(u32(elf, offset + 20), "executable PT_LOAD memory size");
+            if (bytes == 0) {
+                continue;
+            }
+
+            executableBase = Math.min(executableBase, destination);
+            executableEnd = Math.max(executableEnd, Math.addExact(destination, bytes));
+        }
+
+        if (executableEnd < 0) {
+            return new RiscV32ElfImage(header.entry, 0, 0);
+        }
+
+        int alignedBase = executableBase & ~1;
+        int alignedEnd = (executableEnd + 1) & ~1;
+        if (alignedEnd > machine.memoryBytesPerCore()) {
+            alignedEnd = machine.memoryBytesPerCore();
+        }
+        return new RiscV32ElfImage(header.entry, alignedBase, alignedEnd);
     }
 
     private static int u16(byte[] bytes, int offset) {

@@ -84,7 +84,9 @@ public final class RiscV32ChainedBlockKernel {
                 long descriptor = blockDescriptors.get(block);
                 int firstOperation = RiscV32BlockProgram.firstOperation(descriptor);
                 int operationCount = RiscV32BlockProgram.operationCount(descriptor);
-                if (operationCount <= 0 || operationCount > remaining) {
+                int guestInstructionCount = RiscV32BlockProgram.guestInstructionCount(descriptor);
+                if (operationCount <= 0 || guestInstructionCount <= 0
+                        || guestInstructionCount > remaining) {
                     fallbackBudget.set(core, remaining);
                     break;
                 }
@@ -102,9 +104,11 @@ public final class RiscV32ChainedBlockKernel {
                     int rs2 = RiscV32MicroOp.rs2(op);
                     int immediate = RiscV32MicroOp.immediate(op);
                     int instructionBytes = RiscV32MicroOp.instructionBytes(op);
+                    int retiredCount = RiscV32MicroOp.retiredInstructions(op);
                     int nextPc = localPc + instructionBytes;
                     int pendingTrap = -1;
                     int pendingTrapValue = 0;
+                    int retiredBeforeTrap = 0;
 
                     switch (kind) {
                         case RiscV32MicroOp.LUI:
@@ -238,6 +242,69 @@ public final class RiscV32ChainedBlockKernel {
                             break;
                         }
 
+                        case RiscV32MicroOp.LOAD_CONST:
+                            writeRegister(registers, coreCount, core, rd, immediate);
+                            break;
+
+                        case RiscV32MicroOp.ADDI_CHAIN: {
+                            int source1 = readRegister(registers, coreCount, core, rs1);
+                            writeRegister(registers, coreCount, core, rd, source1 + immediate);
+                            break;
+                        }
+
+                        case RiscV32MicroOp.MUL_ADD: {
+                            int source1 = readRegister(registers, coreCount, core, rs1);
+                            int source2 = readRegister(registers, coreCount, core, rs2);
+                            int product = source1 * source2;
+                            int otherRegister = immediate & 0x1f;
+                            int addend = otherRegister == rd
+                                    ? product
+                                    : readRegister(registers, coreCount, core, otherRegister);
+                            writeRegister(registers, coreCount, core, rd, product + addend);
+                            break;
+                        }
+
+                        case RiscV32MicroOp.ADDI_BEQ:
+                        case RiscV32MicroOp.ADDI_BNE:
+                        case RiscV32MicroOp.ADDI_BLT:
+                        case RiscV32MicroOp.ADDI_BGE:
+                        case RiscV32MicroOp.ADDI_BLTU:
+                        case RiscV32MicroOp.ADDI_BGEU: {
+                            int source = readRegister(registers, coreCount, core, rs1);
+                            int updated = source + RiscV32MicroOp.lowSigned16(immediate);
+                            int other = readRegister(registers, coreCount, core, rs2);
+                            writeRegister(registers, coreCount, core, rd, updated);
+
+                            boolean taken;
+                            if (kind == RiscV32MicroOp.ADDI_BEQ) {
+                                taken = updated == other;
+                            } else if (kind == RiscV32MicroOp.ADDI_BNE) {
+                                taken = updated != other;
+                            } else if (kind == RiscV32MicroOp.ADDI_BLT) {
+                                taken = updated < other;
+                            } else if (kind == RiscV32MicroOp.ADDI_BGE) {
+                                taken = updated >= other;
+                            } else if (kind == RiscV32MicroOp.ADDI_BLTU) {
+                                taken = lessThanUnsigned(updated, other);
+                            } else {
+                                taken = !lessThanUnsigned(updated, other);
+                            }
+
+                            if (taken) {
+                                int branchPc = localPc + RiscV32MicroOp.firstInstructionBytes(op);
+                                int target = branchPc + RiscV32MicroOp.highSigned16(immediate);
+                                if ((target & 1) != 0) {
+                                    pendingTrap = RiscV32.TRAP_INSTRUCTION_ADDRESS_MISALIGNED;
+                                    pendingTrapValue = target;
+                                    // ADDI precedes the faulting branch and has architecturally retired.
+                                    retiredBeforeTrap = 1;
+                                } else {
+                                    nextPc = target;
+                                }
+                            }
+                            break;
+                        }
+
                         case RiscV32MicroOp.ADDI:
                         case RiscV32MicroOp.SLTI:
                         case RiscV32MicroOp.SLTIU:
@@ -356,6 +423,10 @@ public final class RiscV32ChainedBlockKernel {
                     }
 
                     if (pendingTrap >= 0) {
+                        if (retiredBeforeTrap > 0) {
+                            counter += retiredBeforeTrap;
+                            remaining -= retiredBeforeTrap;
+                        }
                         localTrap = pendingTrap;
                         localTrapValue = pendingTrapValue;
                         reservations.set(core, -1);
@@ -375,8 +446,8 @@ public final class RiscV32ChainedBlockKernel {
                     }
 
                     localPc = nextPc;
-                    counter++;
-                    remaining--;
+                    counter += retiredCount;
+                    remaining -= retiredCount;
                     executedAny = true;
                 }
 

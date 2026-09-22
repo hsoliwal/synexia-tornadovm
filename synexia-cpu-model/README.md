@@ -89,8 +89,11 @@ Calling `machine.withTrapVectoring(true)` enables machine trap entry through `mt
 `mepc/mcause/mtval/mstatus`, and permits handler return through MRET. EBREAK remains an environment
 halt by default; `withEbreakHalt(false)` turns it into an architectural breakpoint trap instead.
 
-WFI moves a virtual core to `WAITING`; the host can wake such cores with
-`resumeWaitingCores()` without resetting architectural state.
+WFI moves a virtual core to `WAITING`. The host can either wake such cores explicitly with
+`resumeWaitingCores()` or inject machine-software, machine-timer, or machine-external interrupts.
+Pending interrupts are arbitrated at instruction boundaries using `mstatus.MIE`, `mie`, and
+`mip`. Direct and vectored `mtvec` modes are supported; vectored mode dispatches interrupts to
+`BASE + 4 * cause`.
 
 ## Backends
 
@@ -167,8 +170,9 @@ claim that a complete Linux-capable RISC-V platform already exists.
 
 The remaining additive system layers are:
 
-- interrupt injection and timer/software/external interrupt arbitration
-- complete privileged-mode state, including S/U mode delegation
+- interrupt-controller/device models (CLINT/ACLINT, PLIC/APLIC/IMSIC) around the implemented
+  machine software/timer/external interrupt injection
+- complete privileged-mode state beyond M-mode, including S/U mode delegation
 - Sv32 page-table/MMU translation and TLB behavior
 - MMIO devices such as CLINT/PLIC/UART/virtio
 - shared-memory/coherent multicore topology

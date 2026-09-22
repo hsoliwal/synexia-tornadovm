@@ -7,6 +7,7 @@
 package com.synexia.tornadovm.cpu;
 
 import uk.ac.manchester.tornado.api.annotations.Parallel;
+import uk.ac.manchester.tornado.api.types.arrays.Int8Array;
 import uk.ac.manchester.tornado.api.types.arrays.IntArray;
 
 /**
@@ -47,7 +48,9 @@ public final class RiscV32Kernel {
      */
     public static void runQuantum(IntArray registers, IntArray pc, IntArray status, IntArray trapCause,
             IntArray trapValue, IntArray retiredInstructions, IntArray csrs, IntArray reservations,
-            IntArray memory, int wordsPerCore, int executionFlags, int instructionBudget) {
+            IntArray memory, IntArray decodedInstructions, IntArray decodedRawInstructions,
+            Int8Array decodedInstructionLengths, int codeCacheBase, int codeCacheEnd,
+            int wordsPerCore, int executionFlags, int instructionBudget) {
 
         final int coreCount = pc.getSize();
 
@@ -102,21 +105,39 @@ public final class RiscV32Kernel {
                     pendingTrap = RiscV32.TRAP_INSTRUCTION_ACCESS_FAULT;
                     pendingTrapValue = localPc;
                 } else {
-                    int halfword = load16(memory, coreCount, core, localPc);
-                    rawInstruction = halfword;
-                    if ((halfword & 3) != 3) {
-                        instructionBytes = 2;
-                        instruction = decompressInstruction(halfword);
-                        if (instruction == 0) {
-                            pendingTrap = RiscV32.TRAP_ILLEGAL_INSTRUCTION;
-                            pendingTrapValue = halfword;
+                    boolean cacheHit = false;
+                    if (localPc >= codeCacheBase && localPc < codeCacheEnd) {
+                        int cacheIndex = (localPc - codeCacheBase) >>> 1;
+                        int cachedLength = decodedInstructionLengths.get(cacheIndex) & 0xff;
+                        if (cachedLength != 0) {
+                            instructionBytes = cachedLength;
+                            instruction = decodedInstructions.get(cacheIndex);
+                            rawInstruction = decodedRawInstructions.get(cacheIndex);
+                            cacheHit = true;
+                            if (instruction == 0) {
+                                pendingTrap = RiscV32.TRAP_ILLEGAL_INSTRUCTION;
+                                pendingTrapValue = rawInstruction;
+                            }
                         }
-                    } else if (!validAddress(localPc, 4, memoryBytes)) {
-                        pendingTrap = RiscV32.TRAP_INSTRUCTION_ACCESS_FAULT;
-                        pendingTrapValue = localPc;
-                    } else {
-                        instruction = loadInstruction32(memory, coreCount, core, localPc);
-                        rawInstruction = instruction;
+                    }
+
+                    if (!cacheHit) {
+                        int halfword = load16(memory, coreCount, core, localPc);
+                        rawInstruction = halfword;
+                        if ((halfword & 3) != 3) {
+                            instructionBytes = 2;
+                            instruction = decompressInstruction(halfword);
+                            if (instruction == 0) {
+                                pendingTrap = RiscV32.TRAP_ILLEGAL_INSTRUCTION;
+                                pendingTrapValue = halfword;
+                            }
+                        } else if (!validAddress(localPc, 4, memoryBytes)) {
+                            pendingTrap = RiscV32.TRAP_INSTRUCTION_ACCESS_FAULT;
+                            pendingTrapValue = localPc;
+                        } else {
+                            instruction = loadInstruction32(memory, coreCount, core, localPc);
+                            rawInstruction = instruction;
+                        }
                     }
                 }
 
@@ -286,6 +307,7 @@ public final class RiscV32Kernel {
                                 } else {
                                     store32(memory, coreCount, core, address, source2);
                                 }
+                                invalidateCodeCache(decodedInstructionLengths, codeCacheBase, codeCacheEnd, address, width);
                                 reservations.set(core, -1);
                             }
                             break;
@@ -490,6 +512,7 @@ public final class RiscV32Kernel {
                                     case 0x03: // SC.W
                                         if (reservations.get(core) == address) {
                                             store32(memory, coreCount, core, address, source2);
+                                            invalidateCodeCache(decodedInstructionLengths, codeCacheBase, codeCacheEnd, address, 4);
                                             writeRegister(registers, coreCount, core, rd, 0);
                                         } else {
                                             writeRegister(registers, coreCount, core, rd, 1);
@@ -533,6 +556,7 @@ public final class RiscV32Kernel {
 
                                 if (pendingTrap < 0 && store) {
                                     store32(memory, coreCount, core, address, newValue);
+                                    invalidateCodeCache(decodedInstructionLengths, codeCacheBase, codeCacheEnd, address, 4);
                                     writeRegister(registers, coreCount, core, rd, oldValue);
                                     reservations.set(core, -1);
                                 }
@@ -773,6 +797,23 @@ public final class RiscV32Kernel {
 
     private static int memoryIndex(int coreCount, int core, int address) {
         return (address >>> 2) * coreCount + core;
+    }
+
+    private static void invalidateCodeCache(Int8Array lengths, int cacheBase, int cacheEnd,
+            int address, int width) {
+        if (cacheEnd <= cacheBase || address >= cacheEnd || address + width <= cacheBase) {
+            return;
+        }
+        int first = address < cacheBase ? cacheBase : address;
+        int last = address + width - 1;
+        if (last >= cacheEnd) {
+            last = cacheEnd - 1;
+        }
+        int firstSlot = (first - cacheBase) >>> 1;
+        int lastSlot = (last - cacheBase) >>> 1;
+        for (int slot = firstSlot; slot <= lastSlot; slot++) {
+            lengths.set(slot, (byte) 0);
+        }
     }
 
     private static int load8(IntArray memory, int coreCount, int core, int address) {

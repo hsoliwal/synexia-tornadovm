@@ -8,6 +8,7 @@ package com.synexia.tornadovm.cpu;
 
 import java.util.Objects;
 
+import uk.ac.manchester.tornado.api.types.arrays.Int8Array;
 import uk.ac.manchester.tornado.api.types.arrays.IntArray;
 
 /**
@@ -40,6 +41,12 @@ public final class RiscV32Machine {
     private final IntArray reservations;
     private final IntArray memory;
 
+    private IntArray decodedInstructions;
+    private IntArray decodedRawInstructions;
+    private Int8Array decodedInstructionLengths;
+    private int codeCacheBase;
+    private int codeCacheEnd;
+
     private int executionFlags;
 
     public RiscV32Machine(int cores, int memoryBytesPerCore) {
@@ -66,6 +73,11 @@ public final class RiscV32Machine {
         this.csrs = new IntArray(Math.multiplyExact(cores, RiscV32.CSR_SLOT_COUNT));
         this.reservations = new IntArray(cores);
         this.memory = new IntArray((int) totalWords);
+        this.decodedInstructions = new IntArray(1);
+        this.decodedRawInstructions = new IntArray(1);
+        this.decodedInstructionLengths = new Int8Array(1);
+        this.codeCacheBase = 0;
+        this.codeCacheEnd = 0;
         this.executionFlags = RiscV32.DEFAULT_EXECUTION_FLAGS;
         resetAll(0);
     }
@@ -116,6 +128,30 @@ public final class RiscV32Machine {
 
     public IntArray memory() {
         return memory;
+    }
+
+    public IntArray decodedInstructions() {
+        return decodedInstructions;
+    }
+
+    public IntArray decodedRawInstructions() {
+        return decodedRawInstructions;
+    }
+
+    public Int8Array decodedInstructionLengths() {
+        return decodedInstructionLengths;
+    }
+
+    public int codeCacheBase() {
+        return codeCacheBase;
+    }
+
+    public int codeCacheEnd() {
+        return codeCacheEnd;
+    }
+
+    public boolean hasCodeCache() {
+        return codeCacheEnd > codeCacheBase;
     }
 
     public int executionFlags() {
@@ -173,6 +209,68 @@ public final class RiscV32Machine {
 
     public void clearMemory() {
         memory.init(0);
+    }
+
+    /**
+     * Build a shared canonical instruction cache from one core's immutable code image.
+     *
+     * <p>The cache is shared by all virtual cores and is therefore intended for the common
+     * accelerator case where many cores execute the same program image. If guest code stores into
+     * the cached region, the kernel conservatively invalidates the affected shared cache entries
+     * and falls back to architectural memory fetch for those addresses.
+     */
+    public void buildCodeCache(int sourceCore, int byteAddress, int byteLength) {
+        core(sourceCore);
+        requireHalfwordAddress(byteAddress);
+        if (byteLength <= 0 || (byteLength & 1) != 0) {
+            throw new IllegalArgumentException("byteLength must be positive and two-byte aligned");
+        }
+        requireMemoryRange(byteAddress, byteLength);
+
+        int slots = byteLength >>> 1;
+        IntArray canonical = new IntArray(slots);
+        IntArray raw = new IntArray(slots);
+        Int8Array lengths = new Int8Array(slots);
+
+        int pc = byteAddress;
+        int end = byteAddress + byteLength;
+        while (pc < end) {
+            int slot = (pc - byteAddress) >>> 1;
+            int halfword = readUnsignedByte(sourceCore, pc)
+                    | (readUnsignedByte(sourceCore, pc + 1) << 8);
+
+            if ((halfword & 3) != 3) {
+                canonical.set(slot, RiscV32Kernel.decompressInstruction(halfword));
+                raw.set(slot, halfword);
+                lengths.set(slot, (byte) 2);
+                pc += 2;
+            } else {
+                if (pc > end - 4) {
+                    break;
+                }
+                int instruction = halfword
+                        | (readUnsignedByte(sourceCore, pc + 2) << 16)
+                        | (readUnsignedByte(sourceCore, pc + 3) << 24);
+                canonical.set(slot, instruction);
+                raw.set(slot, instruction);
+                lengths.set(slot, (byte) 4);
+                pc += 4;
+            }
+        }
+
+        decodedInstructions = canonical;
+        decodedRawInstructions = raw;
+        decodedInstructionLengths = lengths;
+        codeCacheBase = byteAddress;
+        codeCacheEnd = end;
+    }
+
+    public void clearCodeCache() {
+        decodedInstructions = new IntArray(1);
+        decodedRawInstructions = new IntArray(1);
+        decodedInstructionLengths = new Int8Array(1);
+        codeCacheBase = 0;
+        codeCacheEnd = 0;
     }
 
     public void loadProgramAll(int byteAddress, int... words) {

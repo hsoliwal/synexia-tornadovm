@@ -25,11 +25,12 @@ public final class RiscV32BlockKernel {
 
     public static void runOneBlock(IntArray registers, IntArray pc, IntArray status, IntArray trapCause,
             IntArray trapValue, IntArray retiredInstructions, IntArray csrs, IntArray reservations,
-            IntArray memory, IntArray decodedInstructions, IntArray decodedRawInstructions,
-            Int8Array decodedInstructionLengths, IntArray blockBySlot, LongArray blockDescriptors,
-            Int8Array blockValid, LongArray microOps, Int8Array fallbackMask,
-            IntArray compiledBlockExecutions, int codeCacheBase, int codeCacheEnd,
+            IntArray memory, Int8Array decodedInstructionLengths, IntArray blockBySlot,
+            LongArray blockDescriptors, Int8Array blockValid, LongArray microOps,
+            Int8Array fallbackMask, IntArray compiledBlockExecutions, int codeCacheBase,
             int wordsPerCore, int executionFlags, int instructionBudget) {
+
+        final int codeCacheEnd = codeCacheBase + (blockBySlot.getSize() << 1);
 
         final int coreCount = pc.getSize();
 

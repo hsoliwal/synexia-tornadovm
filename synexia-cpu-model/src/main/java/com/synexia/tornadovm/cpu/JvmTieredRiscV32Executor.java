@@ -37,7 +37,7 @@ public final class JvmTieredRiscV32Executor implements RiscV32Executor {
                     machine.registers(), machine.pc(), machine.status(), machine.trapCause(),
                     machine.trapValue(), machine.retiredInstructions(), machine.csrs(), machine.reservations(),
                     machine.memory(), machine.decodedInstructions(), machine.decodedRawInstructions(),
-                    machine.decodedInstructionLengths(), machine.blockValid(), machine.tierFallbackMask(), 1,
+                    machine.decodedInstructionLengths(), machine.blockValid(), machine.tierFallbackBudget(), 1,
                     machine.codeCacheBase(), machine.codeCacheEnd(),
                     machine.wordsPerCore(), machine.executionFlags(), instructionsPerQuantum);
             quanta++;

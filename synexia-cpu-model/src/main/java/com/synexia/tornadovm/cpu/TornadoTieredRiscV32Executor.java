@@ -76,7 +76,7 @@ public final class TornadoTieredRiscV32Executor implements RiscV32Executor {
                         machine.registers(), machine.pc(), machine.status(), machine.trapCause(), machine.trapValue(),
                         machine.retiredInstructions(), machine.csrs(), machine.reservations(), machine.memory(),
                         machine.decodedInstructions(), machine.decodedRawInstructions(),
-                        machine.decodedInstructionLengths(), machine.blockValid(), machine.tierFallbackMask(), 1,
+                        machine.decodedInstructionLengths(), machine.blockValid(), machine.tierFallbackBudget(), 1,
                         machine.codeCacheBase(), machine.codeCacheEnd(),
                         machine.wordsPerCore(), machine.executionFlags(), instructionsPerQuantum)
                 .transferToHost(DataTransferMode.UNDER_DEMAND,
@@ -84,7 +84,7 @@ public final class TornadoTieredRiscV32Executor implements RiscV32Executor {
                         machine.registers(), machine.pc(), machine.retiredInstructions(),
                         machine.csrs(), machine.reservations(), machine.memory(),
                         machine.decodedInstructionLengths(), machine.blockValid(), machine.tierFallbackMask(),
-                        machine.compiledBlockExecutionsArray());
+                        machine.tierFallbackBudget(), machine.compiledBlockExecutionsArray());
 
         ImmutableTaskGraph immutableGraph = graph.snapshot();
         TornadoExecutionPlan plan = new TornadoExecutionPlan(immutableGraph);
@@ -114,7 +114,7 @@ public final class TornadoTieredRiscV32Executor implements RiscV32Executor {
                         machine.registers(), machine.pc(), machine.retiredInstructions(),
                         machine.csrs(), machine.reservations(), machine.memory(),
                         machine.decodedInstructionLengths(), machine.blockValid(), machine.tierFallbackMask(),
-                        machine.compiledBlockExecutionsArray());
+                        machine.tierFallbackBudget(), machine.compiledBlockExecutionsArray());
             }
 
             long elapsed = System.nanoTime() - start;

@@ -56,15 +56,20 @@ public final class TornadoRiscV32Executor implements RiscV32Executor {
         TaskGraph graph = new TaskGraph(graphName)
                 .transferToDevice(DataTransferMode.FIRST_EXECUTION,
                         machine.registers(), machine.pc(), machine.status(), machine.trapCause(), machine.trapValue(),
-                        machine.retiredInstructions(), machine.csrs(), machine.reservations(), machine.memory())
+                        machine.retiredInstructions(), machine.csrs(), machine.reservations(), machine.memory(),
+                        machine.decodedInstructions(), machine.decodedRawInstructions(),
+                        machine.decodedInstructionLengths())
                 .task("run-quantum", RiscV32Kernel::runQuantum,
                         machine.registers(), machine.pc(), machine.status(), machine.trapCause(), machine.trapValue(),
                         machine.retiredInstructions(), machine.csrs(), machine.reservations(), machine.memory(),
+                        machine.decodedInstructions(), machine.decodedRawInstructions(),
+                        machine.decodedInstructionLengths(), machine.codeCacheBase(), machine.codeCacheEnd(),
                         machine.wordsPerCore(), machine.executionFlags(), instructionsPerQuantum)
                 .transferToHost(DataTransferMode.UNDER_DEMAND,
                         machine.status(), machine.trapCause(), machine.trapValue(),
                         machine.registers(), machine.pc(), machine.retiredInstructions(),
-                        machine.csrs(), machine.reservations(), machine.memory());
+                        machine.csrs(), machine.reservations(), machine.memory(),
+                        machine.decodedInstructionLengths());
 
         ImmutableTaskGraph immutableGraph = graph.snapshot();
         TornadoExecutionPlan plan = new TornadoExecutionPlan(immutableGraph);
@@ -92,7 +97,8 @@ public final class TornadoRiscV32Executor implements RiscV32Executor {
                 lastResult.transferToHost(
                         machine.status(), machine.trapCause(), machine.trapValue(),
                         machine.registers(), machine.pc(), machine.retiredInstructions(),
-                        machine.csrs(), machine.reservations(), machine.memory());
+                        machine.csrs(), machine.reservations(), machine.memory(),
+                        machine.decodedInstructionLengths());
             }
 
             long elapsed = System.nanoTime() - start;

@@ -282,6 +282,7 @@ public final class RiscV32Machine {
         }
         if (words.length > 0) {
             requireMemoryRange(byteAddress, (int) byteLength);
+            invalidateHostCodeCache(byteAddress, (int) byteLength);
         }
 
         int firstWord = byteAddress >>> 2;
@@ -304,6 +305,7 @@ public final class RiscV32Machine {
         }
         if (words.length > 0) {
             requireMemoryRange(byteAddress, (int) byteLength);
+            invalidateHostCodeCache(byteAddress, (int) byteLength);
         }
 
         int firstWord = byteAddress >>> 2;
@@ -329,6 +331,7 @@ public final class RiscV32Machine {
         }
         if (halfwords.length > 0) {
             requireMemoryRange(byteAddress, (int) byteLength);
+            invalidateHostCodeCache(byteAddress, (int) byteLength);
         }
         for (int offset = 0; offset < halfwords.length; offset++) {
             int value = halfwords[offset] & 0xffff;
@@ -433,6 +436,7 @@ public final class RiscV32Machine {
     public void writeByte(int core, int byteAddress, int value) {
         core(core);
         requireMemoryRange(byteAddress, 1);
+        invalidateHostCodeCache(byteAddress, 1);
         int index = memoryIndex(core, byteAddress);
         int shift = (byteAddress & 3) << 3;
         int mask = 0xff << shift;
@@ -444,6 +448,7 @@ public final class RiscV32Machine {
         core(core);
         Objects.requireNonNull(bytes, "bytes");
         requireMemoryRange(byteAddress, bytes.length);
+        invalidateHostCodeCache(byteAddress, bytes.length);
         for (int index = 0; index < bytes.length; index++) {
             writeByte(core, byteAddress + index, bytes[index]);
         }
@@ -452,6 +457,7 @@ public final class RiscV32Machine {
     public void fillBytes(int core, int byteAddress, int length, int value) {
         core(core);
         requireMemoryRange(byteAddress, length);
+        invalidateHostCodeCache(byteAddress, length);
         for (int index = 0; index < length; index++) {
             writeByte(core, byteAddress + index, value);
         }
@@ -468,6 +474,7 @@ public final class RiscV32Machine {
         core(core);
         requireWordAddress(byteAddress);
         requireMemoryRange(byteAddress, 4);
+        invalidateHostCodeCache(byteAddress, 4);
         memory.set(memoryIndex(core, byteAddress), value);
     }
 
@@ -545,6 +552,19 @@ public final class RiscV32Machine {
 
     private int memoryIndex(int core, int byteAddress) {
         return (byteAddress >>> 2) * cores + core;
+    }
+
+    private void invalidateHostCodeCache(int address, int length) {
+        if (!hasCodeCache() || length <= 0 || address >= codeCacheEnd || address + length <= codeCacheBase) {
+            return;
+        }
+        int first = Math.max(address, codeCacheBase);
+        int last = Math.min(address + length - 1, codeCacheEnd - 1);
+        int firstSlot = (first - codeCacheBase) >>> 1;
+        int lastSlot = (last - codeCacheBase) >>> 1;
+        for (int slot = firstSlot; slot <= lastSlot; slot++) {
+            decodedInstructionLengths.set(slot, (byte) 0);
+        }
     }
 
     private void core(int core) {

@@ -47,6 +47,7 @@ public class RiscV32TieredExecutionTest {
         RiscV32ExecutionResult result = executor.execute(machine, 32, 8);
 
         assertTrue(result.allStopped());
+        assertEquals(1, result.quanta());
         for (int core = 0; core < machine.cores(); core++) {
             assertEquals(42, machine.register(core, 3));
             assertEquals(48, machine.register(core, 4));
@@ -67,8 +68,10 @@ public class RiscV32TieredExecutionTest {
         machine.buildCodeCache(0, 0, 20);
         machine.buildBlockCache(16);
 
-        executor.execute(machine, 16, 32);
+        RiscV32ExecutionResult result = executor.execute(machine, 16, 32);
 
+        assertTrue("compiled block chaining should finish the ten-iteration loop in two quanta",
+                result.quanta() <= 2);
         for (int core = 0; core < machine.cores(); core++) {
             assertEquals(10, machine.register(core, 1));
             assertEquals(RiscV32.STATUS_HALTED, machine.status(core));

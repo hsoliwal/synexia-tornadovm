@@ -59,8 +59,16 @@ public final class RiscV32BlockProgram {
         return operationCount;
     }
 
-    static long descriptor(int firstOperation, int operationCount) {
-        return ((long) firstOperation << 32) | (operationCount & 0xffffL);
+    static long descriptor(int firstOperation, int operationCount, int guestInstructionCount) {
+        if (operationCount < 0 || operationCount > 0xffff) {
+            throw new IllegalArgumentException("operationCount must fit 16 bits");
+        }
+        if (guestInstructionCount < 0 || guestInstructionCount > 0xffff) {
+            throw new IllegalArgumentException("guestInstructionCount must fit 16 bits");
+        }
+        return ((long) firstOperation << 32)
+                | ((long) guestInstructionCount << 16)
+                | (operationCount & 0xffffL);
     }
 
     public static int firstOperation(long descriptor) {
@@ -69,5 +77,9 @@ public final class RiscV32BlockProgram {
 
     public static int operationCount(long descriptor) {
         return (int) descriptor & 0xffff;
+    }
+
+    public static int guestInstructionCount(long descriptor) {
+        return ((int) descriptor >>> 16) & 0xffff;
     }
 }

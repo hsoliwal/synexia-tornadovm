@@ -13,7 +13,10 @@ import static com.synexia.tornadovm.cpu.RiscV32Assembler.csrrs;
 import static com.synexia.tornadovm.cpu.RiscV32Assembler.csrrw;
 import static com.synexia.tornadovm.cpu.RiscV32Assembler.ebreak;
 import static com.synexia.tornadovm.cpu.RiscV32Assembler.ecall;
+import static com.synexia.tornadovm.cpu.RiscV32Assembler.jal;
 import static com.synexia.tornadovm.cpu.RiscV32Assembler.lrW;
+import static com.synexia.tornadovm.cpu.RiscV32Assembler.lui;
+import static com.synexia.tornadovm.cpu.RiscV32Assembler.sw;
 import static com.synexia.tornadovm.cpu.RiscV32Assembler.mret;
 import static com.synexia.tornadovm.cpu.RiscV32Assembler.scW;
 import static com.synexia.tornadovm.cpu.RiscV32Assembler.wfi;
@@ -156,6 +159,60 @@ public class RiscV32ExtendedKernelTest {
         assertEquals(0, machine.register(0, 6));
         assertEquals(1, machine.register(0, 7));
         assertEquals(99, machine.readWord(0, 128));
+    }
+
+    @Test
+    public void sharedCodeCacheExecutesCanonicalInstructions() {
+        RiscV32Machine machine = new RiscV32Machine(8, 512);
+        machine.loadProgramAll(0,
+                addi(5, 0, 41),
+                addi(5, 5, 1),
+                ebreak());
+        machine.buildCodeCache(0, 0, 12);
+
+        assertTrue(machine.hasCodeCache());
+        executor.execute(machine, 16, 2);
+
+        for (int core = 0; core < machine.cores(); core++) {
+            assertEquals(42, machine.register(core, 5));
+            assertEquals(RiscV32.STATUS_HALTED, machine.status(core));
+        }
+    }
+
+    @Test
+    public void guestStoreInvalidatesSharedCodeCacheBeforeJump() {
+        RiscV32Machine machine = new RiscV32Machine(1, 512);
+        machine.loadProgramAll(0,
+                lui(2, 0x100),          // x2 = 0x00100000
+                addi(2, 2, 0x73),       // x2 = EBREAK encoding 0x00100073
+                sw(2, 0, 20),           // overwrite cached instruction at 20
+                jal(0, 8),              // jump 12 -> 20
+                addi(3, 0, 1),          // unreachable filler
+                addi(3, 0, 99),         // must be invalidated before execution
+                ebreak());
+        machine.buildCodeCache(0, 0, 28);
+
+        executor.execute(machine, 32, 2);
+
+        assertEquals(0, machine.register(0, 3));
+        assertEquals(RiscV32.STATUS_HALTED, machine.status(0));
+        assertEquals(0x00100073, machine.readWord(0, 20));
+    }
+
+    @Test
+    public void hostWriteInvalidatesSharedCodeCache() {
+        RiscV32Machine machine = new RiscV32Machine(1, 256);
+        machine.loadProgramAll(0,
+                addi(4, 0, 1),
+                ebreak());
+        machine.buildCodeCache(0, 0, 8);
+
+        machine.loadProgramAll(0,
+                addi(4, 0, 77),
+                ebreak());
+
+        executor.execute(machine, 16, 2);
+        assertEquals(77, machine.register(0, 4));
     }
 
     @Test

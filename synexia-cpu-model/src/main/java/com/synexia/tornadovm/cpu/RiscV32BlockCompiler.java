@@ -23,14 +23,17 @@ import uk.ac.manchester.tornado.api.types.arrays.LongArray;
 public final class RiscV32BlockCompiler {
 
     private static final int OP_LOAD = 0x03;
+    private static final int OP_MISC_MEM = 0x0f;
     private static final int OP_IMM = 0x13;
     private static final int OP_AUIPC = 0x17;
     private static final int OP_STORE = 0x23;
+    private static final int OP_AMO = 0x2f;
     private static final int OP = 0x33;
     private static final int OP_LUI = 0x37;
     private static final int OP_BRANCH = 0x63;
     private static final int OP_JALR = 0x67;
     private static final int OP_JAL = 0x6f;
+    private static final int OP_SYSTEM = 0x73;
 
     private RiscV32BlockCompiler() {
     }
@@ -76,6 +79,8 @@ public final class RiscV32BlockCompiler {
                 markLeader(leaders, slotForPc(machine, pc + immediateJ(instruction)));
                 markLeader(leaders, nextSlot);
             } else if (kind == RiscV32MicroOp.JALR) {
+                markLeader(leaders, nextSlot);
+            } else if (RiscV32MicroOp.terminatesBlock(kind)) {
                 markLeader(leaders, nextSlot);
             }
 
@@ -302,6 +307,9 @@ public final class RiscV32BlockCompiler {
             case OP_STORE:
                 immediate = immediateS(instruction);
                 break;
+            case OP_SYSTEM:
+                immediate = instruction >>> 20;
+                break;
             default:
                 break;
         }
@@ -372,6 +380,44 @@ public final class RiscV32BlockCompiler {
                     default:
                         return RiscV32MicroOp.INVALID;
                 }
+            case OP_MISC_MEM:
+                return (funct3 == 0 || funct3 == 1)
+                        ? RiscV32MicroOp.FENCE
+                        : RiscV32MicroOp.INVALID;
+
+            case OP_AMO:
+                if (funct3 != 2) {
+                    return RiscV32MicroOp.INVALID;
+                }
+                switch (instruction >>> 27) {
+                    case 0x02:
+                        return ((instruction >>> 20) & 0x1f) == 0
+                                ? RiscV32MicroOp.LR_W
+                                : RiscV32MicroOp.INVALID;
+                    case 0x03:
+                        return RiscV32MicroOp.SC_W;
+                    case 0x01:
+                        return RiscV32MicroOp.AMOSWAP_W;
+                    case 0x00:
+                        return RiscV32MicroOp.AMOADD_W;
+                    case 0x04:
+                        return RiscV32MicroOp.AMOXOR_W;
+                    case 0x0c:
+                        return RiscV32MicroOp.AMOAND_W;
+                    case 0x08:
+                        return RiscV32MicroOp.AMOOR_W;
+                    case 0x10:
+                        return RiscV32MicroOp.AMOMIN_W;
+                    case 0x14:
+                        return RiscV32MicroOp.AMOMAX_W;
+                    case 0x18:
+                        return RiscV32MicroOp.AMOMINU_W;
+                    case 0x1c:
+                        return RiscV32MicroOp.AMOMAXU_W;
+                    default:
+                        return RiscV32MicroOp.INVALID;
+                }
+
             case OP_IMM:
                 switch (funct3) {
                     case 0:
@@ -445,6 +491,39 @@ public final class RiscV32BlockCompiler {
                     default:
                         return RiscV32MicroOp.INVALID;
                 }
+            case OP_SYSTEM:
+                if (funct3 == 0) {
+                    if (instruction == 0x00000073) {
+                        return RiscV32MicroOp.ECALL;
+                    }
+                    if (instruction == 0x00100073) {
+                        return RiscV32MicroOp.EBREAK;
+                    }
+                    if (instruction == 0x30200073) {
+                        return RiscV32MicroOp.MRET;
+                    }
+                    if (instruction == 0x10500073) {
+                        return RiscV32MicroOp.WFI;
+                    }
+                    return RiscV32MicroOp.INVALID;
+                }
+                switch (funct3) {
+                    case 1:
+                        return RiscV32MicroOp.CSRRW;
+                    case 2:
+                        return RiscV32MicroOp.CSRRS;
+                    case 3:
+                        return RiscV32MicroOp.CSRRC;
+                    case 5:
+                        return RiscV32MicroOp.CSRRWI;
+                    case 6:
+                        return RiscV32MicroOp.CSRRSI;
+                    case 7:
+                        return RiscV32MicroOp.CSRRCI;
+                    default:
+                        return RiscV32MicroOp.INVALID;
+                }
+
             default:
                 return RiscV32MicroOp.INVALID;
         }

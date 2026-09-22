@@ -22,7 +22,9 @@ public final class JvmRiscV32Executor implements RiscV32Executor {
         while (quanta < maxQuanta && !machine.allStopped()) {
             RiscV32Kernel.runQuantum(machine.registers(), machine.pc(), machine.status(), machine.trapCause(),
                     machine.trapValue(), machine.retiredInstructions(), machine.csrs(), machine.reservations(),
-                    machine.memory(), machine.wordsPerCore(), machine.executionFlags(), instructionsPerQuantum);
+                    machine.memory(), machine.decodedInstructions(), machine.decodedRawInstructions(),
+                    machine.decodedInstructionLengths(), machine.codeCacheBase(), machine.codeCacheEnd(),
+                    machine.wordsPerCore(), machine.executionFlags(), instructionsPerQuantum);
             quanta++;
         }
         long elapsed = System.nanoTime() - start;

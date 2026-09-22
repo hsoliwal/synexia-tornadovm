@@ -83,7 +83,7 @@ public final class TornadoTieredRiscV32Executor implements RiscV32Executor {
                         machine.status(), machine.trapCause(), machine.trapValue(),
                         machine.registers(), machine.pc(), machine.retiredInstructions(),
                         machine.csrs(), machine.reservations(), machine.memory(),
-                        machine.decodedInstructionLengths(), machine.blockValid(), machine.tierFallbackMask(),
+                        machine.decodedInstructionLengths(), machine.blockValid(),
                         machine.tierFallbackBudget(), machine.compiledBlockExecutionsArray());
 
         ImmutableTaskGraph immutableGraph = graph.snapshot();
@@ -113,7 +113,7 @@ public final class TornadoTieredRiscV32Executor implements RiscV32Executor {
                         machine.status(), machine.trapCause(), machine.trapValue(),
                         machine.registers(), machine.pc(), machine.retiredInstructions(),
                         machine.csrs(), machine.reservations(), machine.memory(),
-                        machine.decodedInstructionLengths(), machine.blockValid(), machine.tierFallbackMask(),
+                        machine.decodedInstructionLengths(), machine.blockValid(),
                         machine.tierFallbackBudget(), machine.compiledBlockExecutionsArray());
             }
 

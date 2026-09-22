@@ -558,7 +558,7 @@ public final class RiscV32Machine {
         if (!hasCodeCache() || length <= 0 || address >= codeCacheEnd || address + length <= codeCacheBase) {
             return;
         }
-        int first = Math.max(address, codeCacheBase);
+        int first = Math.max(address - 2, codeCacheBase);
         int last = Math.min(address + length - 1, codeCacheEnd - 1);
         int firstSlot = (first - codeCacheBase) >>> 1;
         int lastSlot = (last - codeCacheBase) >>> 1;

@@ -88,6 +88,30 @@ public final class RiscV32MicroOp {
     public static final int ADDI_BLTU = 53;
     public static final int ADDI_BGEU = 54;
 
+    public static final int FENCE = 55;
+    public static final int LR_W = 56;
+    public static final int SC_W = 57;
+    public static final int AMOSWAP_W = 58;
+    public static final int AMOADD_W = 59;
+    public static final int AMOXOR_W = 60;
+    public static final int AMOAND_W = 61;
+    public static final int AMOOR_W = 62;
+    public static final int AMOMIN_W = 63;
+    public static final int AMOMAX_W = 64;
+    public static final int AMOMINU_W = 65;
+    public static final int AMOMAXU_W = 66;
+
+    public static final int ECALL = 67;
+    public static final int EBREAK = 68;
+    public static final int MRET = 69;
+    public static final int WFI = 70;
+    public static final int CSRRW = 71;
+    public static final int CSRRS = 72;
+    public static final int CSRRC = 73;
+    public static final int CSRRWI = 74;
+    public static final int CSRRSI = 75;
+    public static final int CSRRCI = 76;
+
     private static final int RD_SHIFT = 8;
     private static final int RS1_SHIFT = 13;
     private static final int RS2_SHIFT = 18;
@@ -189,7 +213,9 @@ public final class RiscV32MicroOp {
     public static boolean terminatesBlock(int kind) {
         return kind == JAL || kind == JALR
                 || (kind >= BEQ && kind <= BGEU)
-                || (kind >= ADDI_BEQ && kind <= ADDI_BGEU);
+                || (kind >= ADDI_BEQ && kind <= ADDI_BGEU)
+                || kind == ECALL || kind == EBREAK || kind == MRET || kind == WFI
+                || (kind >= CSRRW && kind <= CSRRCI);
     }
 
     private static void requireRegister(int register) {

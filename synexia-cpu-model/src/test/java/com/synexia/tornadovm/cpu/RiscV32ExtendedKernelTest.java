@@ -112,7 +112,9 @@ public class RiscV32ExtendedKernelTest {
 
         assertEquals(1, machine.register(0, 5));
         assertEquals(RiscV32.STATUS_HALTED, machine.status(0));
-        assertEquals(RiscV32.TRAP_ECALL_M_MODE, machine.trapCause(0));
+        // trapCause records the latest environment event (the final EBREAK halt), while
+        // architectural mcause remains the last vectored exception handled by M-mode.
+        assertEquals(RiscV32.TRAP_BREAKPOINT, machine.trapCause(0));
         assertEquals(4, machine.csr(0, RiscV32.CSR_MEPC));
         assertEquals(RiscV32.TRAP_ECALL_M_MODE, machine.csr(0, RiscV32.CSR_MCAUSE));
     }

@@ -8,6 +8,7 @@ package com.synexia.tornadovm.cpu;
 
 import static com.synexia.tornadovm.cpu.RiscV32Assembler.addi;
 import static com.synexia.tornadovm.cpu.RiscV32Assembler.amoAddW;
+import static com.synexia.tornadovm.cpu.RiscV32Assembler.csrrc;
 import static com.synexia.tornadovm.cpu.RiscV32Assembler.csrrs;
 import static com.synexia.tornadovm.cpu.RiscV32Assembler.csrrw;
 import static com.synexia.tornadovm.cpu.RiscV32Assembler.ebreak;
@@ -140,6 +141,39 @@ public class RiscV32ExtendedKernelTest {
         assertEquals(0, machine.register(0, 6));
         assertEquals(1, machine.register(0, 7));
         assertEquals(99, machine.readWord(0, 128));
+    }
+
+    @Test
+    public void timerInterruptWakesWfiAndUsesVectoredMtvec() {
+        RiscV32Machine machine = new RiscV32Machine(1, 512)
+                .withTrapVectoring(true);
+
+        machine.loadProgramAll(0,
+                wfi(),
+                addi(10, 10, 1),
+                ebreak());
+
+        int mtvecBase = 64;
+        int timerVector = mtvecBase + 4 * 7;
+        machine.loadProgram(0, timerVector,
+                addi(1, 0, RiscV32.MIP_MTIP),
+                csrrc(0, RiscV32.CSR_MIP, 1),
+                mret());
+
+        machine.csr(0, RiscV32.CSR_MTVEC, mtvecBase | 1);
+        machine.csr(0, RiscV32.CSR_MIE, RiscV32.MIP_MTIP);
+        machine.csr(0, RiscV32.CSR_MSTATUS, RiscV32.MSTATUS_MIE);
+
+        executor.execute(machine, 16, 2);
+        assertEquals(RiscV32.STATUS_WAITING, machine.status(0));
+
+        machine.setMachineTimerInterrupt(0, true);
+        executor.execute(machine, 64, 4);
+
+        assertEquals(1, machine.register(0, 10));
+        assertEquals(RiscV32.STATUS_HALTED, machine.status(0));
+        assertEquals(0, machine.csr(0, RiscV32.CSR_MIP) & RiscV32.MIP_MTIP);
+        assertEquals(RiscV32.INTERRUPT_MACHINE_TIMER, machine.csr(0, RiscV32.CSR_MCAUSE));
     }
 
     @Test

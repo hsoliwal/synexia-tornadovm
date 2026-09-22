@@ -57,9 +57,24 @@ public final class RiscV32ChainedBlockKernel {
                     if ((mstatus & RiscV32.MSTATUS_MIE) != 0) {
                         int enabledPending = csrs.get(csrIndex(coreCount, core, RiscV32.CSR_SLOT_MIE))
                                 & csrs.get(csrIndex(coreCount, core, RiscV32.CSR_SLOT_MIP));
-                        if (enabledPending != 0) {
-                            fallbackBudget.set(core, remaining);
-                            break;
+                        int interruptCause = 0;
+                        if ((enabledPending & RiscV32.MIP_MEIP) != 0) {
+                            interruptCause = RiscV32.INTERRUPT_MACHINE_EXTERNAL;
+                        } else if ((enabledPending & RiscV32.MIP_MSIP) != 0) {
+                            interruptCause = RiscV32.INTERRUPT_MACHINE_SOFTWARE;
+                        } else if ((enabledPending & RiscV32.MIP_MTIP) != 0) {
+                            interruptCause = RiscV32.INTERRUPT_MACHINE_TIMER;
+                        }
+
+                        if (interruptCause != 0) {
+                            localTrap = interruptCause;
+                            localTrapValue = 0;
+                            reservations.set(core, -1);
+                            enterMachineTrap(csrs, coreCount, core, localPc, interruptCause, 0);
+                            int mtvec = csrs.get(csrIndex(coreCount, core, RiscV32.CSR_SLOT_MTVEC));
+                            localPc = machineTrapTarget(mtvec, interruptCause);
+                            // Interrupts do not retire an instruction; continue with the same budget.
+                            continue;
                         }
                     }
                 }
@@ -92,6 +107,7 @@ public final class RiscV32ChainedBlockKernel {
                 }
 
                 boolean leaveCompiledTier = false;
+                boolean reenterCompiledTier = false;
                 boolean executedAny = false;
 
                 for (int index = 0; index < operationCount
@@ -605,9 +621,9 @@ public final class RiscV32ChainedBlockKernel {
                             enterMachineTrap(csrs, coreCount, core, localPc, pendingTrap, pendingTrapValue);
                             int mtvec = csrs.get(csrIndex(coreCount, core, RiscV32.CSR_SLOT_MTVEC));
                             localPc = machineTrapTarget(mtvec, pendingTrap);
-                            // A trap handler is a semantic boundary. Let the interpreter consume
-                            // the exact remaining budget after this non-retiring instruction.
-                            fallbackBudget.set(core, remaining);
+                            // Re-enter the compiled tier at mtvec when possible. If mtvec is not
+                            // compiled, the next block lookup will hand the same budget to fallback.
+                            reenterCompiledTier = true;
                         } else {
                             localStatus = RiscV32.STATUS_TRAPPED;
                         }
@@ -626,6 +642,9 @@ public final class RiscV32ChainedBlockKernel {
                 }
 
                 if (leaveCompiledTier) {
+                    if (reenterCompiledTier && localStatus == RiscV32.STATUS_RUNNING) {
+                        continue;
+                    }
                     if (localStatus == RiscV32.STATUS_RUNNING
                             && fallbackBudget.get(core) == 0
                             && remaining > 0) {

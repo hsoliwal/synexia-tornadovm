@@ -260,6 +260,36 @@ public class RiscV32TieredExecutionTest {
     }
 
     @Test
+    public void illegalCsrWriteMatchesInterpreterTrapValueAndPc() {
+        int illegal = csrrw(2, RiscV32.CSR_MISA, 1);
+        int[] program = {
+                addi(1, 0, 1),
+                illegal,
+                ebreak()
+        };
+
+        RiscV32Machine reference = new RiscV32Machine(1, 256);
+        RiscV32Machine tiered = new RiscV32Machine(1, 256);
+        reference.loadProgramAll(0, program);
+        tiered.loadProgramAll(0, program);
+        tiered.buildCodeCache(0, 0, program.length * Integer.BYTES);
+        tiered.buildBlockCache(16);
+
+        new JvmRiscV32Executor().execute(reference, 16, 2);
+        executor.execute(tiered, 16, 2);
+
+        assertEquals(RiscV32.STATUS_TRAPPED, reference.status(0));
+        assertEquals(reference.status(0), tiered.status(0));
+        assertEquals(reference.pc(0), tiered.pc(0));
+        assertEquals(4, tiered.pc(0));
+        assertEquals(reference.trapCause(0), tiered.trapCause(0));
+        assertEquals(reference.trapValue(0), tiered.trapValue(0));
+        assertEquals(illegal, tiered.trapValue(0));
+        assertEquals(reference.retiredInstructions(0), tiered.retiredInstructions(0));
+        assertEquals(1L, tiered.retiredInstructions(0));
+    }
+
+    @Test
     public void microOpPackingIsDenseAndLossless() {
         long op = RiscV32MicroOp.pack(RiscV32MicroOp.ADDI, 31, 30, 29, -123456789, 2);
 

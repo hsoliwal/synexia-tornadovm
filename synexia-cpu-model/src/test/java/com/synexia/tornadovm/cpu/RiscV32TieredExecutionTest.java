@@ -8,11 +8,16 @@ package com.synexia.tornadovm.cpu;
 
 import static com.synexia.tornadovm.cpu.RiscV32Assembler.add;
 import static com.synexia.tornadovm.cpu.RiscV32Assembler.addi;
+import static com.synexia.tornadovm.cpu.RiscV32Assembler.amoAddW;
 import static com.synexia.tornadovm.cpu.RiscV32Assembler.blt;
+import static com.synexia.tornadovm.cpu.RiscV32Assembler.csrrs;
+import static com.synexia.tornadovm.cpu.RiscV32Assembler.csrrw;
 import static com.synexia.tornadovm.cpu.RiscV32Assembler.ebreak;
+import static com.synexia.tornadovm.cpu.RiscV32Assembler.ecall;
 import static com.synexia.tornadovm.cpu.RiscV32Assembler.jal;
 import static com.synexia.tornadovm.cpu.RiscV32Assembler.lrW;
 import static com.synexia.tornadovm.cpu.RiscV32Assembler.lui;
+import static com.synexia.tornadovm.cpu.RiscV32Assembler.mret;
 import static com.synexia.tornadovm.cpu.RiscV32Assembler.mul;
 import static com.synexia.tornadovm.cpu.RiscV32Assembler.sw;
 import static com.synexia.tornadovm.cpu.RiscV32CompressedAssembler.cAdd;
@@ -197,6 +202,60 @@ public class RiscV32TieredExecutionTest {
         assertTrue(result.quanta() <= 2);
         assertEquals(10, machine.register(0, 1));
         assertEquals(23L, machine.retiredInstructions(0));
+    }
+
+    @Test
+    public void atomicsCsrsAndHaltStayInCompiledTier() {
+        RiscV32Machine machine = new RiscV32Machine(1, 512);
+        machine.writeWord(0, 128, 7);
+        machine.loadProgramAll(0,
+                addi(1, 0, 128),
+                addi(2, 0, 5),
+                amoAddW(3, 1, 2),
+                csrrs(4, RiscV32.CSR_MISA, 0),
+                ebreak());
+        machine.buildCodeCache(0, 0, 20);
+        machine.buildBlockCache(16);
+
+        assertEquals(5, machine.compilationStats().compiledGuestInstructions());
+
+        RiscV32ExecutionResult result = executor.execute(machine, 16, 4);
+
+        assertTrue(result.allStopped());
+        assertEquals(7, machine.register(0, 3));
+        assertEquals(12, machine.readWord(0, 128));
+        assertEquals(RiscV32.MISA_RV32_IMAC, machine.register(0, 4));
+        assertEquals(RiscV32.STATUS_HALTED, machine.status(0));
+        assertEquals(0, machine.tierFallbackBudget().get(0));
+    }
+
+    @Test
+    public void ecallTrapHandlerAndMretStayInCompiledTier() {
+        RiscV32Machine machine = new RiscV32Machine(1, 512)
+                .withTrapVectoring(true);
+        machine.loadProgramAll(0,
+                ecall(),
+                addi(5, 5, 1),
+                ebreak());
+        machine.loadProgram(0, 64,
+                csrrs(1, RiscV32.CSR_MEPC, 0),
+                addi(1, 1, 4),
+                csrrw(0, RiscV32.CSR_MEPC, 1),
+                mret());
+
+        machine.csr(0, RiscV32.CSR_MTVEC, 64);
+        machine.buildCodeCache(0, 0, 80);
+        machine.buildBlockCache(16);
+
+        RiscV32ExecutionResult result = executor.execute(machine, 32, 4);
+
+        assertTrue(result.allStopped());
+        assertEquals(1, machine.register(0, 5));
+        assertEquals(4, machine.csr(0, RiscV32.CSR_MEPC));
+        assertEquals(RiscV32.TRAP_ECALL_M_MODE, machine.csr(0, RiscV32.CSR_MCAUSE));
+        assertEquals(RiscV32.TRAP_BREAKPOINT, machine.trapCause(0));
+        assertEquals(0, machine.tierFallbackBudget().get(0));
+        assertTrue(machine.compiledBlockExecutions(0) >= 5);
     }
 
     @Test

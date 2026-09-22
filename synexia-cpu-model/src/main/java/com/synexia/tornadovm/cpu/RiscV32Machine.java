@@ -52,7 +52,6 @@ public final class RiscV32Machine {
     private LongArray blockDescriptors;
     private Int8Array blockValid;
     private LongArray microOps;
-    private Int8Array tierFallbackMask;
     private IntArray tierFallbackBudget;
     private IntArray compiledBlockExecutions;
     private int compiledBlockCount;
@@ -93,8 +92,6 @@ public final class RiscV32Machine {
         this.blockDescriptors = new LongArray(1);
         this.blockValid = new Int8Array(1);
         this.microOps = new LongArray(1);
-        this.tierFallbackMask = new Int8Array(cores);
-        this.tierFallbackMask.init((byte) 1);
         this.tierFallbackBudget = new IntArray(cores);
         this.compiledBlockExecutions = new IntArray(cores);
         this.compiledBlockCount = 0;
@@ -185,10 +182,6 @@ public final class RiscV32Machine {
 
     public LongArray microOps() {
         return microOps;
-    }
-
-    public Int8Array tierFallbackMask() {
-        return tierFallbackMask;
     }
 
     public IntArray tierFallbackBudget() {
@@ -367,7 +360,6 @@ public final class RiscV32Machine {
         microOps = program.microOps();
         compiledBlockCount = program.blockCount();
         compiledOperationCount = program.operationCount();
-        tierFallbackMask.init((byte) 1);
         tierFallbackBudget.init(0);
     }
 
@@ -378,7 +370,6 @@ public final class RiscV32Machine {
         microOps = new LongArray(1);
         compiledBlockCount = 0;
         compiledOperationCount = 0;
-        tierFallbackMask.init((byte) 1);
         tierFallbackBudget.init(0);
     }
 

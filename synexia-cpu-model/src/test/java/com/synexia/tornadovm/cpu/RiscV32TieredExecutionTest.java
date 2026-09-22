@@ -156,9 +156,11 @@ public class RiscV32TieredExecutionTest {
         machine.buildCodeCache(0, 0, 36);
         machine.buildBlockCache(32);
 
-        // Eight compilable guest instructions become five packed operations:
-        // LOAD_CONST, ADDI_CHAIN, ADDI, ADDI, MUL_ADD.
-        assertEquals(5, machine.compiledOperationCount());
+        // Nine guest instructions become six packed operations:
+        // LOAD_CONST, ADDI_CHAIN, ADDI, ADDI, MUL_ADD, EBREAK.
+        assertEquals(6, machine.compiledOperationCount());
+        assertEquals(9, machine.compilationStats().compiledGuestInstructions());
+        assertEquals(3, machine.compilationStats().fusedInstructions());
 
         RiscV32ExecutionResult result = executor.execute(machine, 32, 4);
 

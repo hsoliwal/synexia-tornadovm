@@ -1,0 +1,3 @@
+m3/cpu-gpu/src/main/java/com/synexia/m3/cpugpu/Rv32iBulkExecutor.java	b0ebdc225a2bab02010b070bb2a00d9d6e54e2978d4576f9931224492b425d0c	Rv32iBulkExecutor.java.txt
+m3/cpu-gpu/src/main/java/com/synexia/m3/cpugpu/Rv32iBulkReceipt.java	17788b47933d816c2572ff7621cac91b6283228989267992928314ab30f148ed	Rv32iBulkReceipt.java.txt
+m3/cpu-gpu/src/test/java/com/synexia/m3/cpugpu/Rv32iBulkExecutorTest.java	084be070a96bb88877251d559e89575f6d7c7f133cfb3f9ecfb9b6e4ef11cd0d	Rv32iBulkExecutorTest.java.txt

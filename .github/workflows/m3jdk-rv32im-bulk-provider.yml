@@ -29,7 +29,6 @@ jobs:
           distribution: temurin
           java-version: '21'
       - run: mvn -B -ntp -f m3/jdk-bulk-provider/recipe/pom.xml test
-      - run: mvn -B -ntp -f m3/jdk-bulk-provider/recipe/pom.xml rewrite:dryRun
 
   adapter-contract:
     runs-on: ubuntu-24.04

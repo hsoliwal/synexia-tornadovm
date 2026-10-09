@@ -86,6 +86,36 @@ final class M3JdkRv32iBulkProviderRecipeTest {
                                         new InMemoryExecutionContext()));
     }
 
+    @Test
+    void liveProviderTargetsAreAtRecipeFixedPoint() throws Exception {
+        Path root = repositoryRoot();
+        ArrayList<SourceFile> sources = new ArrayList<>();
+        for (String relative : new M3JdkRv32iBulkProviderRecipe().targetPaths()) {
+            Path path = Path.of(relative);
+            sources.add(
+                    PlainText.builder()
+                            .sourcePath(path)
+                            .text(java.nio.file.Files.readString(root.resolve(path)))
+                            .build());
+        }
+        var run =
+                new M3JdkRv32iBulkProviderRecipe()
+                        .run(
+                                new InMemoryLargeSourceSet(sources),
+                                new InMemoryExecutionContext());
+        assertEquals(0, run.getChangeset().size());
+    }
+
+    private static Path repositoryRoot() {
+        Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
+        for (int depth = 0; depth < 8 && current != null; depth++, current = current.getParent()) {
+            if (java.nio.file.Files.isRegularFile(current.resolve("m3/cpu-gpu/pom.xml"))) {
+                return current;
+            }
+        }
+        throw new IllegalStateException("TornadoVM repository root not found");
+    }
+
     private static SourceFile source(String path, String resource) {
         return PlainText.builder()
                 .sourcePath(Path.of(path))

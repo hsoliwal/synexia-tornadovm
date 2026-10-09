@@ -16,84 +16,120 @@ import org.junit.jupiter.api.Test;
 final class M3JdkRv32iBulkProviderTest {
     @Test
     void admitsOnlyTheExactReviewedTaskShape() {
-        M3JdkRv32iBulkProvider provider = new M3JdkRv32iBulkProvider(123);
-        assertEquals(M3JdkRv32iBulkProvider.ID, provider.id());
-        assertEquals(123, provider.priority());
-        assertTrue(provider.supports(task(4, 0)));
-        assertFalse(
-                provider.supports(
-                        new BulkTask(
-                                "other",
-                                4,
-                                0,
-                                List.of("batch", "instructionBudget"),
-                                List.of("batch", "receipt"))));
-        assertFalse(
-                provider.supports(
-                        new BulkTask(
-                                "rv32im-slice",
-                                4,
-                                0,
-                                List.of("batch"),
-                                List.of("batch", "receipt"))));
+        try (M3JdkRv32iBulkProvider provider = new M3JdkRv32iBulkProvider(123)) {
+            assertEquals(M3JdkRv32iBulkProvider.ID, provider.id());
+            assertEquals(123, provider.priority());
+            assertTrue(provider.supports(task(4, 0)));
+            assertFalse(
+                    provider.supports(
+                            new BulkTask(
+                                    "other",
+                                    4,
+                                    0,
+                                    List.of("batch", "instructionBudget"),
+                                    List.of("batch", "receipt"))));
+            assertFalse(
+                    provider.supports(
+                            new BulkTask(
+                                    "rv32im-slice",
+                                    4,
+                                    0,
+                                    List.of("batch"),
+                                    List.of("batch", "receipt"))));
+        }
     }
 
     @Test
     void rejectsShapeAndValuesBeforeTouchingTornadoVm() {
-        M3JdkRv32iBulkProvider provider = new M3JdkRv32iBulkProvider();
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> provider.execute(
-                        task(2, 0),
-                        Map.of(
-                                "batch",
-                                batch(1),
-                                "instructionBudget",
-                                64)));
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> provider.execute(
-                        task(1, 0),
-                        Map.of(
-                                "batch",
-                                "not-a-batch",
-                                "instructionBudget",
-                                64)));
-        assertThrows(
-                IllegalArgumentException.class,
-                () -> provider.execute(
-                        task(1, 0),
-                        Map.of(
-                                "batch",
-                                batch(1),
-                                "instructionBudget",
-                                "64")));
+        try (M3JdkRv32iBulkProvider provider = new M3JdkRv32iBulkProvider()) {
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> provider.execute(
+                            task(2, 0),
+                            Map.of(
+                                    "batch",
+                                    batch(1),
+                                    "instructionBudget",
+                                    64)));
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> provider.execute(
+                            task(1, 0),
+                            Map.of(
+                                    "batch",
+                                    "not-a-batch",
+                                    "instructionBudget",
+                                    64)));
+            assertThrows(
+                    IllegalArgumentException.class,
+                    () -> provider.execute(
+                            task(1, 0),
+                            Map.of(
+                                    "batch",
+                                    batch(1),
+                                    "instructionBudget",
+                                    "64")));
+            assertEquals(0, provider.sessionCreations());
+        }
     }
 
     @Test
-    void qualifiedHardwareRunProducesVerifiedJdkReceipt() {
+    void closeRemovesProviderFromAdmission() {
+        M3JdkRv32iBulkProvider provider = new M3JdkRv32iBulkProvider();
+        BulkTask task = task(1, 0);
+        assertTrue(provider.supports(task));
+        provider.close();
+        assertFalse(provider.supports(task));
+        assertThrows(
+                IllegalStateException.class,
+                () -> provider.execute(
+                        task,
+                        Map.of(
+                                "batch",
+                                batch(1),
+                                "instructionBudget",
+                                1)));
+    }
+
+    @Test
+    void qualifiedHardwareRunReusesVerifiedResidentSession() {
         Assumptions.assumeTrue(
                 Boolean.getBoolean("m3.gpu"),
                 "qualified TornadoVM device not requested");
 
         Rv32iBatch batch = batch(256);
-        BulkExecution result =
-                new M3JdkRv32iBulkProvider()
-                        .execute(
-                                task(256, 64),
-                                Map.of(
-                                        "batch",
-                                        batch,
-                                        "instructionBudget",
-                                        1024));
+        try (M3JdkRv32iBulkProvider provider = new M3JdkRv32iBulkProvider()) {
+            BulkExecution first =
+                    provider.execute(
+                            task(256, 64),
+                            Map.of(
+                                    "batch",
+                                    batch,
+                                    "instructionBudget",
+                                    2));
+            assertEquals(M3JdkRv32iBulkProvider.ID, first.provider());
+            assertEquals(1, provider.sessionCreations());
+            assertEquals(1, provider.verifiedSlices());
 
-        assertEquals(M3JdkRv32iBulkProvider.ID, result.provider());
-        assertEquals(batch, result.outputs().get("batch"));
-        Rv32iBulkReceipt receipt =
-                (Rv32iBulkReceipt) result.outputs().get("receipt");
-        assertEquals(Rv32iBulkReceipt.Mode.TORNADO_VERIFIED, receipt.mode());
-        assertEquals(receipt.root(), result.receiptRoot());
-        assertEquals(5050, batch.exitCode(0));
+            BulkExecution second =
+                    provider.execute(
+                            task(256, 64),
+                            Map.of(
+                                    "batch",
+                                    batch,
+                                    "instructionBudget",
+                                    1024));
+
+            assertEquals(M3JdkRv32iBulkProvider.ID, second.provider());
+            assertEquals(batch, second.outputs().get("batch"));
+            Rv32iBulkReceipt receipt =
+                    (Rv32iBulkReceipt) second.outputs().get("receipt");
+            assertEquals(Rv32iBulkReceipt.Mode.TORNADO_VERIFIED, receipt.mode());
+            assertEquals(receipt.root(), second.receiptRoot());
+            assertEquals(5050, batch.exitCode(0));
+            assertEquals(1, provider.sessionCreations());
+            assertEquals(2, provider.verifiedSlices());
+        }
     }
 
     private static BulkTask task(long workItems, long localWork) {

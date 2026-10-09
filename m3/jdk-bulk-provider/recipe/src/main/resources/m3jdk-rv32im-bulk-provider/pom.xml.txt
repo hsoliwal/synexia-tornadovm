@@ -9,7 +9,8 @@
   <version>1.0.0-SNAPSHOT</version>
   <name>M3JDK RV32IM TornadoVM bulk provider</name>
   <properties>
-    <maven.compiler.release>21</maven.compiler.release>
+    <maven.compiler.source>21</maven.compiler.source>
+    <maven.compiler.target>21</maven.compiler.target>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <junit.version>5.11.4</junit.version>
     <m3.gpu>false</m3.gpu>
@@ -35,7 +36,8 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.13.0</version>
         <configuration>
-          <release>21</release>
+          <source>21</source>
+          <target>21</target>
           <compilerArgs>
             <arg>--patch-module</arg>
             <arg>java.base=${m3jdk.patch.classes}</arg>

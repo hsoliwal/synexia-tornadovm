@@ -1,0 +1,23 @@
+{
+  "schema": "M3_TORNADOVM_M3JDK_BULK_PROVIDER_LOCK_V1",
+  "portable_semantics": {
+    "repository": "hsoliwal/com.synexia",
+    "pr": 9989,
+    "packet_head": "2d0b367a9e9f22a8653083a97b739737b7713cbd",
+    "recipe": "com.synexia.rewrite.M3BulkSchedulerProviderRecipe"
+  },
+  "jdk_contract": {
+    "repository": "hsoliwal/M3jdk21",
+    "pr": 549,
+    "head": "c73485c96e9f996b1ed993413096fc4146f9f3c8",
+    "namespace": "jdk.internal.vm.parallel"
+  },
+  "tornado_backend": {
+    "repository": "hsoliwal/synexia-tornadovm",
+    "provider_pr": 7,
+    "provider_merge": "3bf826714a48d7fdf346ffde8a0fc25c525572c5",
+    "operation": "rv32im-slice",
+    "admission": "TORNADO_VERIFIED_ONLY"
+  },
+  "promotion_authority": false
+}

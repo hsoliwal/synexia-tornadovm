@@ -1,0 +1,91 @@
+name: M3JDK RV32IM Bulk Provider
+
+on:
+  pull_request:
+    paths:
+      - 'm3/jdk-bulk-provider/**'
+      - '.github/workflows/m3jdk-rv32im-bulk-provider.yml'
+  workflow_dispatch:
+    inputs:
+      physical_gpu:
+        description: 'Run verified TornadoVM execution on a qualified self-hosted GPU runner'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+env:
+  M3JDK_REPOSITORY: hsoliwal/M3jdk21
+  M3JDK_HEAD: c73485c96e9f996b1ed993413096fc4146f9f3c8
+
+jobs:
+  recipe-fixed-point:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - run: mvn -B -ntp -f m3/jdk-bulk-provider/recipe/pom.xml test
+
+  adapter-contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: hsoliwal/M3jdk21
+          ref: c73485c96e9f996b1ed993413096fc4146f9f3c8
+          path: target/m3jdk
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile exact M3JDK internal bulk patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          src="$PWD/target/m3jdk-bulk-src/jdk/internal/vm/parallel"
+          out="$PWD/target/m3jdk-bulk-patch"
+          mkdir -p "$src" "$out"
+          for name in BulkTask BulkExecutor BulkExecution BulkExecutorProvider BulkScheduler; do
+            cp "target/m3jdk/src/java.base/share/classes/jdk/internal/vm/parallel/$name.java" "$src/$name.java"
+          done
+          javac -Xlint:all -Werror             --patch-module "java.base=$PWD/target/m3jdk-bulk-src"             -d "$out" "$src"/*.java
+      - name: Install existing RV32IM provider engine
+        run: mvn -B -ntp -f m3/cpu-gpu/pom.xml -DskipTests install
+      - name: Compile and test typed M3JDK adapter without GPU
+        run: |
+          mvn -B -ntp -f m3/jdk-bulk-provider/pom.xml             -Dm3jdk.patch.classes="$PWD/target/m3jdk-bulk-patch"             -Dm3.gpu=false test
+
+  physical-gpu-parity:
+    if: github.event_name == 'workflow_dispatch' && inputs.physical_gpu
+    runs-on: [self-hosted, linux, tornadovm-gpu]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: hsoliwal/M3jdk21
+          ref: c73485c96e9f996b1ed993413096fc4146f9f3c8
+          path: target/m3jdk
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Compile exact M3JDK internal bulk patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          src="$PWD/target/m3jdk-bulk-src/jdk/internal/vm/parallel"
+          out="$PWD/target/m3jdk-bulk-patch"
+          mkdir -p "$src" "$out"
+          for name in BulkTask BulkExecutor BulkExecution BulkExecutorProvider BulkScheduler; do
+            cp "target/m3jdk/src/java.base/share/classes/jdk/internal/vm/parallel/$name.java" "$src/$name.java"
+          done
+          javac -Xlint:all -Werror             --patch-module "java.base=$PWD/target/m3jdk-bulk-src"             -d "$out" "$src"/*.java
+      - run: mvn -B -ntp -f m3/cpu-gpu/pom.xml -DskipTests install
+      - name: Run JDK adapter through verified TornadoVM hardware path
+        run: |
+          mvn -B -ntp -f m3/jdk-bulk-provider/pom.xml             -Dm3jdk.patch.classes="$PWD/target/m3jdk-bulk-patch"             -Dm3.gpu=true test

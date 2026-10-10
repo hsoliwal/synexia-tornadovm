@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.synexia.m3</groupId>
+  <artifactId>m3jdk-rv32im-bulk-provider</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <name>M3JDK RV32IM TornadoVM bulk provider</name>
+  <properties>
+    <maven.compiler.source>21</maven.compiler.source>
+    <maven.compiler.target>21</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <junit.version>5.11.4</junit.version>
+    <m3.gpu>false</m3.gpu>
+    <m3jdk.patch.classes></m3jdk.patch.classes>
+  </properties>
+  <dependencies>
+    <dependency>
+      <groupId>com.synexia.m3</groupId>
+      <artifactId>cpu-gpu-rv32im</artifactId>
+      <version>1.0.0-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+        <configuration>
+          <source>21</source>
+          <target>21</target>
+          <compilerArgs>
+            <arg>--patch-module</arg>
+            <arg>java.base=${m3jdk.patch.classes}</arg>
+            <arg>--add-exports</arg>
+            <arg>java.base/jdk.internal.vm.parallel=ALL-UNNAMED</arg>
+            <arg>-Xlint:all</arg>
+            <arg>-Werror</arg>
+          </compilerArgs>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.5.2</version>
+        <configuration>
+          <argLine>--patch-module java.base=${m3jdk.patch.classes} --add-exports java.base/jdk.internal.vm.parallel=ALL-UNNAMED</argLine>
+          <systemPropertyVariables>
+            <m3.gpu>${m3.gpu}</m3.gpu>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>

@@ -40,6 +40,7 @@
                 <version>3.13.0</version>
                 <configuration>
                     <release>21</release>
+                    <enablePreview>true</enablePreview>
                     <compilerArgs>
                         <arg>-Xlint:all</arg>
                         <arg>-Werror</arg>
@@ -51,6 +52,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>3.5.2</version>
                 <configuration>
+                    <argLine>--enable-preview</argLine>
                     <systemPropertyVariables>
                         <m3.gpu>${m3.gpu}</m3.gpu>
                     </systemPropertyVariables>

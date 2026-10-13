@@ -41,8 +41,9 @@
                 <configuration>
                     <release>21</release>
                     <enablePreview>true</enablePreview>
+                    <proc>none</proc>
                     <compilerArgs>
-                        <arg>-Xlint:all</arg>
+                        <arg>-Xlint:all,-preview</arg>
                         <arg>-Werror</arg>
                     </compilerArgs>
                 </configuration>

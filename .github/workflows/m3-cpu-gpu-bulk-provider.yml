@@ -28,8 +28,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-      - run: mvn -B -ntp -f m3/cpu-gpu/recipe-bulk-provider/pom.xml test
-      - run: mvn -B -ntp -f m3/cpu-gpu/recipe-bulk-provider/pom.xml rewrite:dryRun
+      - run: mvn -B -ntp -f m3/cpu-gpu/recipe-bulk-provider/pom.xml test install
+      - run: mvn -B -ntp -f m3/cpu-gpu/recipe-bulk-provider/pom.xml -Drewrite.recipeArtifactCoordinates=com.synexia.m3:cpu-gpu-bulk-provider-recipe:1.0.0-SNAPSHOT rewrite:dryRun
 
   cpu-contract:
     runs-on: ubuntu-24.04

@@ -1,0 +1,24 @@
+name: M3 RV32IM Preview Dependency Strict Compile
+
+on:
+  pull_request:
+    paths:
+      - 'm3/cpu-gpu/pom.xml'
+      - '.github/workflows/m3-rv32im-preview-lint.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  cpu-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Test RV32IM with strict non-preview diagnostics
+        run: mvn -B -ntp -f m3/cpu-gpu/pom.xml -Dm3.gpu=false clean test

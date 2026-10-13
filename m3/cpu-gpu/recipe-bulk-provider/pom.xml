@@ -32,6 +32,12 @@
       <version>24.0.1</version>
       <scope>provided</scope>
     </dependency>
+      <!-- OpenRewrite's recipe execution loads SLF4J LoggerFactory; not an optional test stub. -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-api</artifactId>
+      <version>1.7.36</version>
+    </dependency>
   </dependencies>
   <build>
     <plugins>

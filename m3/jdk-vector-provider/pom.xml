@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- SPDX-FileCopyrightText: 2026 Hitesh Soliwal and Contributors to the Synexia Project -->
+<!-- SPDX-License-Identifier: Apache-2.0 -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.synexia.m3</groupId>
+  <artifactId>m3-tornado-vector-provider</artifactId>
+  <version>1.0.0-SNAPSHOT</version>
+  <name>M3 TornadoVM optional vector-compute SPI provider</name>
+  <properties>
+    <maven.compiler.release>21</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <tornado.version>6.1.0-jdk21</tornado.version>
+    <junit.version>5.13.4</junit.version>
+  </properties>
+  <dependencies>
+    <!-- Installed locally by the Synexia canonical M3 JMOD module Maven POM. -->
+    <dependency>
+      <groupId>com.synexia.m3</groupId>
+      <artifactId>m3-compute-vector</artifactId>
+      <version>1.0.0-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+      <groupId>io.github.beehive-lab</groupId>
+      <artifactId>tornado-api</artifactId>
+      <version>${tornado.version}</version>
+    </dependency>
+    <!-- Native/device drivers and JDK flags must be supplied by the caller. -->
+    <dependency>
+      <groupId>io.github.beehive-lab</groupId>
+      <artifactId>tornado-runtime</artifactId>
+      <version>${tornado.version}</version>
+      <scope>runtime</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+  <build><plugins>
+    <plugin>
+      <groupId>org.apache.maven.plugins</groupId>
+      <artifactId>maven-compiler-plugin</artifactId>
+      <version>3.14.1</version>
+      <configuration>
+        <release>21</release>
+        <compilerArgs><arg>-Xlint:all</arg><arg>-Werror</arg></compilerArgs>
+      </configuration>
+    </plugin>
+    <plugin>
+      <groupId>org.apache.maven.plugins</groupId>
+      <artifactId>maven-surefire-plugin</artifactId>
+      <version>3.5.4</version>
+    </plugin>
+  </plugins></build>
+</project>

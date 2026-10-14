@@ -14,6 +14,16 @@ Readers are invited to examine the work and contribute representative workloads.
 This section describes the direction of the hsoliwal fork. Upstream documentation
 follows below; upstream authorship, licenses, and project identity remain intact.
 
+## Working on this fork
+
+This repository is a fork of [beehive-lab/TornadoVM](https://github.com/beehive-lab/TornadoVM).
+Start with the [build and run guide](BUILD_AND_RUN.md) for the current JDK profiles,
+backend selection, generated SDK/argfile paths and focused tests.
+[Contributing](CONTRIBUTING.md) distinguishes fork PRs from upstream submissions.
+The badges, release links and performance examples below describe upstream
+artifacts; qualify this fork's exact commit on the intended JDK and device before
+making compatibility or speed claims.
+
 ---
 
 <img src="etc/tornadovm-logo.png" alt="TornadoVM logo" align="left" width="350">
@@ -298,7 +308,7 @@ It depends on the workload — data-parallel kernels with enough arithmetic inte
 - 💬 Questions and ideas: [GitHub Discussions](https://github.com/beehive-lab/TornadoVM/discussions) or the [TornadoVM Slack](https://join.slack.com/t/tornadovmcommunity/shared_invite/zt-3ai2wyqva-bKz~cQRFlaJ~ZnPrbkwIEw)
 - 🛠️ Building from source: [INSTALL_FROM_SOURCE.md](INSTALL_FROM_SOURCE.md)
 - 📋 How to contribute: [CONTRIBUTING.md](CONTRIBUTING.md) · [`good first issue`](https://github.com/beehive-lab/TornadoVM/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
-- 🤖 Working with an AI coding agent? The repo ships a [TornadoVM developer skill](tornadovm-skill.skill) (build, test, debug workflows) for Claude.
+- 🤖 Working with an AI coding agent? The repo ships a [TornadoVM developer skill](.claude/skills/tornadovm/SKILL.md) (build, test, debug workflows) for Claude.
 - 🏛️ Academic & industrial collaborations: [contact us](https://www.tornadovm.org/contact-us)
 
 ---

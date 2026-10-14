@@ -99,6 +99,88 @@ iteration and a profiler log. This is not a captured execution result. Confirm t
 selected backend/device and inspect any “Result is wrong” output before discussing
 timing. A tiny vector is a teaching example, not a representative acceleration case.
 
+## Deeper API trace: transfers, snapshots and ownership
+
+Use these public source owners to follow a graph without assuming the fluent API
+executes each call immediately:
+
+- [TaskGraph](../tornado-api/src/main/java/uk/ac/manchester/tornado/api/TaskGraph.java):
+  graph construction, task-name checks, transfer declarations and `snapshot()`.
+- [DataTransferMode](../tornado-api/src/main/java/uk/ac/manchester/tornado/api/enums/DataTransferMode.java):
+  the actual transfer constants and their documented meaning.
+- [TornadoExecutionPlan](../tornado-api/src/main/java/uk/ac/manchester/tornado/api/TornadoExecutionPlan.java):
+  `execute()`, graph selection, profiler result creation and memory release.
+- [TornadoExecutionResult](../tornado-api/src/main/java/uk/ac/manchester/tornado/api/TornadoExecutionResult.java):
+  explicit whole-object/partial transfers and readiness queries.
+
+`TaskGraph` obtains its runtime implementation through `TornadoAPIProvider`.
+The fluent task overloads package the method and arguments and delegate to that
+implementation. `snapshot()` asks it to create an immutable task graph.
+That describes graph structure; it is not a promise to deep-copy every mutable
+application array. Transfer policy still determines when host contents become
+device inputs.
+
+### A two-execution thought experiment
+
+Assume the vector example's first execution consumes `a=10`, `b=20`.
+Before the second execution, the host changes `a` to 100.
+
+| Policy selected for input `a` | What the policy asks the runtime to do | Review question |
+| --- | --- | --- |
+| `EVERY_EXECUTION` | Transfer the current host input for each execution | Is the host mutation complete before execution? |
+| `FIRST_EXECUTION` | Transfer only on the first execution and retain device data | Is reusing the original device input actually intended? |
+
+Under the first policy, the source-level arithmetic expectation for the second
+execution is 120; under the second, the original transferred input implies 30,
+assuming the same plan/device state and no other updates. These are reasoned
+expectations for a proposed test, not observed results or guarantees across plan
+recreation/device changes.
+
+For output, `transferToHost(EVERY_EXECUTION, c)` requests a copy after each execution.
+With `UNDER_DEMAND`, host code must request the output explicitly, for example through
+`executionResult.transferToHost(c)`, before treating host values as the new result.
+`persistOnDevice(c)` delegates to under-demand output handling. It is not an automatic
+host refresh and does not by itself establish a cross-graph ownership protocol.
+
+### Execution and cleanup boundaries
+
+`TornadoExecutionPlan.execute()` delegates execution, constructs a profiler result,
+records an execution result, and updates the last-executed graph. Follow those
+delegations before interpreting a profiler number or assuming a particular scheduling
+mechanism. The `TaskGraph` execution delegate calls `waitOn()`; driver details remain
+a separate layer.
+
+The plan implements `close()` by freeing its device-memory associations. The
+`freeDeviceMemory()` documentation explains that buffers may become reusable by the
+runtime; it does not promise an immediate reduction in OS-reported GPU allocation.
+Use the README's try-with-resources style for new examples and inspect the lifetime of
+all results and buffers. The vector example's loop is a reading exercise, not a complete
+resource-management template.
+
+### Debug the earliest incorrect boundary
+
+| Symptom | Check before changing a kernel |
+| --- | --- |
+| Duplicate task-name exception | `checkTaskName` and identifiers within one graph; typed task overloads reserve names |
+| Host input mutation seems ignored | Transfer mode, graph/plan reuse, actual selected device and timing of mutation |
+| Device computation finishes but host output is stale | Output declaration and whether an under-demand transfer was requested |
+| Reflectively supplied kernel is rejected | The `task(String, Method, Object...)` overload requires a non-null static method |
+| Generated class cannot be compiled as a kernel | That overload's documented class-loader requirement: class bytes must be readable as a resource |
+| Grid scheduler is rejected | Plan validation requires grid names registered with the graph/task mapping |
+| GPU memory does not visibly shrink after close | Distinguish release from a plan, runtime buffer reuse, and driver/OS accounting |
+
+Read-only navigation commands from the root:
+
+```sh
+git grep -n -e checkTaskName -e createImmutableTaskGraph -- tornado-api/src/main/java
+git grep -n -e syncRuntimeTransferToHost -e freeDeviceMemory -- tornado-api/src/main/java
+git grep -n -e FIRST_EXECUTION -e UNDER_DEMAND -- tornado-unittests/src
+```
+
+A useful bug report includes a minimal two-execution input/output trace and the
+transfer declarations, not just a timing screenshot. Keep hardware execution and
+memory measurements marked NOT_RUN until actually performed on the exact head.
+
 ## When something fails
 
 - **JDK/profile mismatch:** inspect `JAVA_HOME`, the reported Java version and the

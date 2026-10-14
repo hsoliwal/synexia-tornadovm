@@ -20,6 +20,9 @@ This repository is a fork of [beehive-lab/TornadoVM](https://github.com/beehive-
 Start with the [build and run guide](BUILD_AND_RUN.md) for the current JDK profiles,
 backend selection, generated SDK/argfile paths and focused tests.
 [Contributing](CONTRIBUTING.md) distinguishes fork PRs from upstream submissions.
+The [component guide](docs/COMPONENT_GUIDE.md), [host/device lifecycle](docs/HOST_DEVICE_LIFECYCLE.md)
+and [coverage inventory](docs/COMPONENT_INVENTORY.md) map the current modules,
+package identities and remaining semantic-review gaps.
 The badges, release links and performance examples below describe upstream
 artifacts; qualify this fork's exact commit on the intended JDK and device before
 making compatibility or speed claims.

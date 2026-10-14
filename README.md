@@ -1,5 +1,7 @@
 ## M3 direction in this fork
 
+**New to this checkout?** See the [source exploration and build/test cheat sheet](docs/fork-exploration-guide.md).
+
 M3 is based on the idea that shared immutable structure and indexed metadata can
 provide a basis for reusable computation. The programme starts with M3 String,
 regex, and precompute in M3JDK21, then collections and SWT/Eclipse integration.

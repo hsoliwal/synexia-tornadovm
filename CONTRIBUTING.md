@@ -3,7 +3,29 @@
 We welcome contributions!
 Please follow the instructions below for your Pull Requests (PRs).
 
-## How to submit your changes
+## Contributions to this fork
+
+For changes intended for `hsoliwal/synexia-tornadovm`, use a topic branch from
+the fork's current `master` and open a draft PR targeting that fork. State the
+base/head commits and whether the change is fork-specific or also intended for
+upstream. Use [BUILD_AND_RUN.md](BUILD_AND_RUN.md) for this checkout's JDK profiles,
+SDK setup and test routes.
+
+Keep source changes and documentation claims tied to the exact commit and
+backend tested. Include commands, JDK/OS, device/driver details and separate
+passed, failed, skipped and not-run results. Documentation-only reviews should
+verify linked paths and command sources and say when builds or device tests
+were not executed. Preserve [module licenses](README.md#licenses-per-module),
+source headers and [first-party/upstream provenance](M3-SYNEXIA-RIGHTS.md).
+
+## Upstream submission process
+
+The retained process below describes contributions to
+[beehive-lab/TornadoVM](https://github.com/beehive-lab/TornadoVM), including its
+`develop` target, CLA and review process. Check that upstream's current guide
+still applies before submitting there; a PR in this fork is a separate review.
+
+### How to submit your changes
 
 1. **Fork** the repository in GitHub.
 2. **Clone** the project.

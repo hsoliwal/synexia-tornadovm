@@ -1,193 +1,205 @@
-# TornadoVM Build and Run Guide
+# TornadoVM build and run guide
 
-TornadoVM provides two main approaches for building and running applications:
+This guide is for a source checkout of
+[hsoliwal/synexia-tornadovm](https://github.com/hsoliwal/synexia-tornadovm), a fork of
+[beehive-lab/TornadoVM](https://github.com/beehive-lab/TornadoVM).
+Use [INSTALL_FROM_SOURCE.md](INSTALL_FROM_SOURCE.md) for platform installation
+details and [CONTRIBUTING.md](CONTRIBUTING.md) for the fork/upstream review routes.
+The commands below follow this checkout's [Makefile](Makefile),
+[build driver](bin/compile) and [Maven profiles](pom.xml).
 
-## Option 1: Make Build + Tornado Command
+## 1. Choose a JDK and backend
 
-This is the traditional approach using the make build system and the tornado wrapper script.
+Run build commands from the repository root.
 
-### Build
+- Set `JAVA_HOME` to the JDK that will actually compile the project. A profile
+  selects compiler settings; it does not switch the JDK for you.
+- `jdk21` requires JDK 21 and creates a preview-enabled Java 21 SDK.
+  `jdk22plus` accepts a build JDK of 22 or newer and compiles with release 22.
+  The profile is a source-level compatibility contract, not proof of execution
+  on every JDK, OS, GPU or driver.
+- Have Git, Python 3, Make and the selected backend's native compiler/CMake
+  dependencies available. On Unix, the SDK launcher also uses Bash.
+- The Python dependency checker can invoke `pip3` for missing `requests`,
+  `tqdm`, `urllib3`, `wget`, `packaging` and `streamlit`. Use an isolated
+  Python environment and account for those downloads before starting.
+- The [Maven wrapper](.mvn/wrapper/maven-wrapper.properties) pins Maven 3.9.6.
+  The initial build also fetches/stages Graal dependencies through
+  [pull_graal_jars.py](bin/pull_graal_jars.py) and, for OpenCL, obtains Khronos
+  headers. A clean checkout is not an offline build.
+
+| Backend | Build selection | Device/runtime prerequisites |
+| --- | --- | --- |
+| OpenCL | `BACKEND=opencl` | An OpenCL implementation/driver for the selected device |
+| CUDA | `BACKEND=cuda` | NVIDIA driver and CUDA Toolkit, including NVRTC |
+| Metal | `BACKEND=metal` | macOS/Apple Silicon toolchain and runtime |
+
+The Makefile accepts `opencl`, `cuda` and `metal`; it rejects an empty or
+unknown backend. Prefer a single backend while qualifying a backend-specific
+change so tests cannot quietly exercise a different installed backend.
+
+## 2. Build the SDK with Make
+
+Example for JDK 21 and OpenCL on a Unix shell:
+
 ```bash
-make
+export JAVA_HOME=/absolute/path/to/jdk-21
+export PATH="$JAVA_HOME/bin:$PATH"
+"$JAVA_HOME/bin/java" -version
+make jdk21 BACKEND=opencl
+source setvars.sh
+tornado --devices
 ```
 
-### Run
+The build generates `setvars.sh` (or `setvars.cmd` on Windows) after a successful
+Maven build. It is not a prerequisite that exists in a fresh clone. On Windows,
+use the installation guide's toolchain setup and generated `setvars.cmd`.
+
+To use a JDK 22+ installation, select the other profile explicitly:
+
 ```bash
-tornado --jvm="-Dtornado.option=value" -cp <classpath> <MainClass> [args]
+export JAVA_HOME=/absolute/path/to/jdk-22-or-newer
+export PATH="$JAVA_HOME/bin:$PATH"
+make jdk22plus BACKEND=opencl
+source setvars.sh
 ```
 
-**Example:**
+Plain `make` still selects the `jdk21` build target. The `sdk` target derives
+its profile from `JAVA_HOME`, while `sdk-jdk21` and `sdk-jdk22plus` pin it.
+For example, `make sdk-jdk21 BACKEND=cuda` creates SDK archives for that
+selection. The convenience target `make metal` selects `metal,opencl`; use
+`make jdk21 BACKEND=metal` when you want Metal alone.
+
+Make delegates to `bin/compile`, which checks the JDK, performs Maven cleanup,
+stages dependencies, builds with explicit profiles, and generates SDK paths and
+argfiles. The SDK is assembled under `dist/`; `bin/sdk` is a generated link.
+Use the generated `TORNADOVM_HOME` instead of hard-coding a versioned directory.
+
+[update_paths.py](bin/update_paths.py) prefers an existing `full` SDK, then
+the most recently modified candidate. If several builds exist, inspect the
+reported SDK path and `$TORNADOVM_HOME/etc/tornado.backend` before testing.
+Also check `JAVA_HOME` after sourcing an older `setvars.sh`, because that
+file records the JDK used when it was generated.
+
+### Maven and resource settings
+
+[.mvn/maven.config](.mvn/maven.config) sets `-T1.5C`, colored output, skipped
+Javadoc and timestamps. It does **not** select a JDK/backend profile or enable
+tests. [pom.xml](pom.xml) defaults `skipTests` to `true`.
+
+For the build driver's single-threaded path:
+
 ```bash
-tornado --jvm="-Dtornado.debug=true" -cp target/examples.jar examples.MatrixMultiplication
+bin/compile --jdk jdk21 --backend opencl --mvn_single_threaded
 ```
 
-### When to use
-- Standard development workflow
-- When you want simplified command-line interface
-- When working with pre-configured TornadoVM installations
+Direct Maven is useful for focused module work after dependency staging. It does
+not perform all the SDK setup and argfile generation done by `bin/compile`.
+For example, this is the no-GPU reflection-test reactor used by the Makefile:
 
-### How it works
-- `make` builds the entire TornadoVM SDK in `bin/sdk/`
-- The `tornado` command is a wrapper script that:
-  - Sets up the Java module path
-  - Configures all required JVM flags and exports
-  - Adds TornadoVM modules and native libraries
-  - Launches the application with proper configuration
-
----
-
-## Option 2: Maven Build + Java with Argfile
-
-This is a Maven-friendly approach that uses an argument file for JVM configuration.
-
-### Build
 ```bash
-./mvnw clean install -DskipTests
+./mvnw -Pjdk21 -pl tornado-api,tornado-runtime -am clean test -DskipTests=false
 ```
 
-### Run
+Use `-Pjdk22plus` with a matching JDK 22+ environment. Missing
+`tornado.graal` or `tornado.jvmci` artifacts on a fresh checkout indicate
+that the dependency-staging route needs inspection; a plain Maven install is
+not a substitute for that bootstrap. A successful install with tests skipped
+does not establish runtime correctness.
+
+## 3. Run with the launcher or a generated argfile
+
+After sourcing the generated environment, the wrapper is the simplest route:
+
 ```bash
-java @tornado-argfile -cp <classpath> <MainClass> [args]
+tornado --devices
+tornado --printKernel --debug -m tornado.examples/uk.ac.manchester.tornado.examples.VectorAddInt --params="8192"
 ```
 
-**Example:**
-```bash
-java @tornado-argfile \
-  -cp tornado-examples/target/tornado-examples-1.1.2-SNAPSHOT.jar \
-  uk.ac.manchester.tornado.examples.compute.MatrixMultiplication
-```
+This uses the checked-in [VectorAddInt example](tornado-examples/src/main/java/uk/ac/manchester/tornado/examples/VectorAddInt.java)
+and the same module/main-class form as `make example`. For an application on
+the classpath:
 
-### When to use
-- Maven-based projects and workflows
-- IDE integration (IntelliJ, Eclipse, VS Code)
-- CI/CD pipelines
-- When you need explicit control over JVM arguments
-- When debugging with IDEs
-
-### How it works
-- `./mvnw clean install` builds all TornadoVM modules using Maven
-- The `tornado-argfile` contains all necessary JVM flags:
-  - JVM mode and memory settings (`-XX:+EnableJVMCI`, etc.)
-  - Native library paths (`-Djava.library.path=...`)
-  - Module system configuration (`--module-path`, `--add-modules`, etc.)
-  - Required exports and opens for Graal compiler access
-- The `@tornado-argfile` syntax tells Java to read arguments from the file
-
-### Viewing the argfile
-The `tornado-argfile` is located at the root of the TornadoVM repository. You can examine it to see all JVM configuration:
-```bash
-cat tornado-argfile
-```
-
----
-
-## Comparison
-
-| Aspect | Make + Tornado Command | Maven + Java @argfile |
-|--------|----------------------|----------------------|
-| **Build Tool** | Make | Maven |
-| **Run Command** | `tornado` wrapper | `java @tornado-argfile` |
-| **IDE Integration** | Limited | Excellent |
-| **Flexibility** | Simplified | Full control |
-| **CI/CD** | Traditional scripts | Maven-native |
-| **JVM Config** | Hidden in wrapper | Explicit in argfile |
-
----
-
-## Configuration Files
-
-### tornado-argfile
-Located at the repository root, this file contains:
-- JVM server mode and experimental VM options
-- JVMCI enablement for Graal compiler
-- Native library paths for TornadoVM
-- Tornado runtime class implementations
-- Module path and upgrade paths
-- Extensive `--add-exports` and `--add-opens` declarations for Graal compiler internals
-
-### .mvn/maven.config
-Maven configuration file that applies to all Maven builds (both `./mvnw` and `bin/compile`):
-- **Parallel builds**: `-T1.5C` (1.5 threads per CPU core)
-- **Colored output**: `-Dstyle.color=always` for better readability
-- **Default profiles**: JDK 21 + OpenCL backend (can be overridden)
-- **Skip Javadoc**: `-Dmaven.javadoc.skip=true` for faster builds
-- **Fail fast**: `-Dfailfast=true` for quicker feedback during development
-- **Timestamps**: Shows build timestamps for performance tracking
-
-These settings are automatically applied. To override:
-```bash
-# Single-threaded build
-./mvnw -T1 install
-
-# Generate Javadocs
-./mvnw install -Dmaven.javadoc.skip=false
-```
-
-### Module Structure
-Both approaches load these core TornadoVM modules:
-- `tornado.runtime` - Core runtime implementation
-- `tornado.annotation` - Annotation processing
-- `tornado.drivers.common` - Common driver infrastructure
-- `tornado.drivers.opencl` - OpenCL backend (additional drivers may be added)
-
----
-
-## Tips
-
-### Build Performance
-
-**Standard workflow (same as master branch):**
-```bash
-make                           # Full clean build every time
-bin/compile --jdk jdk21 --backend opencl
-```
-
-### Using Additional JVM Options
-**Option 1:**
 ```bash
 tornado --jvm="-Xmx8g -Dtornado.debug=true" -cp app.jar Main
 ```
 
-**Option 2:**
+Replace `app.jar` and `Main` with your application. The wrapper supplies the
+SDK module paths, native library paths, exports and JDK-specific flags.
+
+For an IDE or direct Java launch, generate the argfile for the current JDK:
+
 ```bash
-java @tornado-argfile -Xmx8g -Dtornado.debug=true -cp app.jar Main
+tornado --generate-argfile
+"$JAVA_HOME/bin/java" @"$TORNADOVM_HOME/tornado-argfile" -cp app.jar Main
 ```
 
-### Checking Available Devices
-**Option 1:**
+The generated file is **inside the selected SDK**, not at the repository root.
+The [generator](tornado-assembly/src/bin/gen-tornado-argfile-template.py) derives
+flags from the installed launcher and inlines export lists; Java does not expand
+nested argfiles. The checked-in [example-argfile](example-argfile) is an example,
+not the generated configuration for your machine.
+
+Regenerate after changing JDK or relocating/selecting an SDK. JVMCI-related
+flags differ between runtime JDKs. Check warnings: the launcher can fall back
+to its shipped template if regeneration fails. In an IDE, select the same JDK,
+use the expanded file's absolute path in VM options, and supply your application
+classpath/main class separately.
+
+## 4. Choose the test scope
+
+After dependency staging, the Makefile exposes these no-GPU test routes:
+
+```bash
+make test-reflection JDK=jdk21
+make test-reflection-only JDK=jdk21
+make test-cuda-codegen JDK=jdk21
+```
+
+Use `JDK=jdk22plus` for that profile. These checks still need their compiler
+and Maven dependencies. They cover reflection metadata or CUDA code generation;
+they do not prove device execution.
+
+For backend/device tests, first build the intended backend, source its environment
+and inspect the available devices:
+
 ```bash
 tornado --devices
+tornado-test -V uk.ac.manchester.tornado.unittests.foundation.TestFloats
+tornado-test --verbose --quickPass
 ```
 
-**Option 2:**
-```bash
-java @tornado-argfile -cp bin/sdk/share/java/tornado/tornado-drivers-opencl-1.1.2-SNAPSHOT.jar \
-  uk.ac.manchester.tornado.drivers.opencl.OCLDeviceQuery
-```
+The runner has no `--backend` switch: the installed SDK determines the backend.
+Use its `--device` option when a test needs a particular device and retain that
+selection in the result. `--quickPass` excludes heavy/memory coverage. The broader
+`make tests` target also invokes a deliberate low-memory failure case and native
+tests. See [the unit-test guide](tornado-unittests/README.md) for class/method
+selection and runner options. Record failures, unsupported cases and skips
+separately; device enumeration alone is not a kernel test.
 
-### IDE Configuration
-For IntelliJ IDEA, Eclipse, or VS Code, use Option 2:
-1. Import as Maven project
-2. Configure run configuration with VM options: `@tornado-argfile`
-3. Set classpath to include your application jar
-4. Run directly from the IDE
+## Source map and troubleshooting
 
----
+- [tornado-api](tornado-api/): application-facing task graph and execution APIs
+- [tornado-runtime](tornado-runtime/): runtime and scheduling implementation
+- [tornado-drivers](tornado-drivers/): backend compilers and native integrations
+- [tornado-assembly](tornado-assembly/): SDK packaging, launchers and export lists
+- [tornado-examples](tornado-examples/) and [tornado-unittests](tornado-unittests/):
+  runnable examples and device regression tests
+- [docs/source](docs/source/): Sphinx documentation sources
 
-## Troubleshooting
+For module/preview errors, verify the JDK profile, `JAVA_HOME`, selected SDK and
+freshly generated argfile together. For native-library or missing-device errors,
+check the backend, driver/toolkit and library paths. Preserve the first failing
+command and log rather than reporting a later build or a different device as a
+pass.
 
-### "Module not found" errors
-- Ensure `tornado-argfile` paths are correct for your installation
-- Check that `--module-path` points to the built SDK location
+The [README license map](README.md#licenses-per-module),
+[Apache-2.0 text](LICENSE_APACHE2), [GPLv2 with Classpath Exception text](LICENSE_GPLv2CE)
+and per-file notices remain authoritative for their respective material. Read
+the [M3/Synexia provenance notice](M3-SYNEXIA-RIGHTS.md) for first-party additions;
+a fork does not relicense upstream runtime/driver code.
 
-### Native library errors
-- Verify `-Djava.library.path` in `tornado-argfile` points to correct location
-- Ensure native libraries were built successfully
-
-### Class export errors
-- The `tornado-argfile` contains all necessary `--add-exports`
-- If custom modules are added, you may need to extend the argfile
-
----
-
-For more information, see the [TornadoVM Documentation](https://tornadovm.readthedocs.io/).
+Include the commit, JDK, OS/architecture, backend, GPU/driver, SDK path, commands
+and exact test scope with a result. No build, device tests, benchmarks or
+documentation rendering were executed for this guide revision. These
+source-checked instructions make no new portability or performance claim.

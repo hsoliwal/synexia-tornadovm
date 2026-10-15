@@ -8,6 +8,8 @@ regex, and precompute in M3JDK21, then collections and SWT/Eclipse integration.
 
 This TornadoVM fork is an exploration surface for suitable accelerated precompute. M3 remains CPU-first; preparation, transfer, synchronization, and memory costs determine where acceleration is useful.
 
+**Try the fork additions:** [RISC-V engine guide and CPU-oracle cheat sheet](docs/fork-experiments.md) compares the two engines and walks through a small plain-Java guest program.
+
 **Explore the idea:** [M3 technical design paper](https://github.com/hsoliwal/M3jdk21/blob/master/m3/papers/M3_SHARED_STRUCTURE_AND_REUSABLE_COMPUTATION.md) ·
 [Programme goals and roadmap](https://github.com/hsoliwal/M3jdk21#project-goals-and-plan).
 The paper explains the proposed architecture, cost tradeoffs, and evaluation plan.

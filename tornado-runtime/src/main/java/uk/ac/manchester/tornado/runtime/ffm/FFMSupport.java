@@ -5,19 +5,18 @@
  * Copyright (c) 2026, APT Group, Department of Computer Science,
  * The University of Manchester. All rights reserved.
  *
- * This code is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License version 2 only, as
- * published by the Free Software Foundation.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * This code is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
- * version 2 for more details (a copy is included in the LICENSE file that
- * accompanied this code).
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * You should have received a copy of the GNU General Public License version
- * 2 along with this work; if not, write to the Free Software Foundation,
- * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
  */
 package uk.ac.manchester.tornado.runtime.ffm;
 
@@ -32,6 +31,8 @@ import java.lang.foreign.SymbolLookup;
 import java.lang.foreign.ValueLayout;
 import java.lang.invoke.MethodHandle;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 /**
  * Shared plumbing for the Panama (java.lang.foreign) bindings, which replace the
@@ -88,6 +89,34 @@ public final class FFMSupport {
             }
         }
         return null;
+    }
+
+    /**
+     * Opens a library TornadoVM ships itself, searching {@code java.library.path} before falling
+     * back to {@link #loadLibrary}. dlopen does not read that property, so a shim unpacked into
+     * the SDK's {@code lib/} is not found by soname alone.
+     *
+     * @return the lookup, or {@code null} if none of the candidates could be loaded.
+     */
+    public static SymbolLookup loadBundledLibrary(String... sonames) {
+        String libraryPath = System.getProperty("java.library.path", "");
+        for (String directory : libraryPath.split(java.io.File.pathSeparator)) {
+            if (directory.isEmpty()) {
+                continue;
+            }
+            for (String soname : sonames) {
+                try {
+                    Path candidate = Path.of(directory, soname);
+                    if (!Files.isRegularFile(candidate)) {
+                        continue;
+                    }
+                    return SymbolLookup.libraryLookup(candidate, GLOBAL);
+                } catch (IllegalArgumentException e) {
+                    // Also catches InvalidPathException, a subclass. Try the next candidate.
+                }
+            }
+        }
+        return loadLibrary(sonames);
     }
 
     /**

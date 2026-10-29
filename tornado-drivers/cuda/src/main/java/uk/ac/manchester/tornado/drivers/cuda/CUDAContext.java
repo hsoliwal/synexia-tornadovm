@@ -6,21 +6,18 @@
  * School of Engineering, The University of Manchester. All rights reserved.
  * Copyright (c) 2013-2020, APT Group, Department of Computer Science,
  * The University of Manchester. All rights reserved.
- * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
- * This code is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License version 2 only, as
- * published by the Free Software Foundation.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * This code is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
- * version 2 for more details (a copy is included in the LICENSE file that
- * accompanied this code).
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * You should have received a copy of the GNU General Public License version
- * 2 along with this work; if not, write to the Free Software Foundation,
- * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  *
  */
 package uk.ac.manchester.tornado.drivers.cuda;
@@ -35,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import uk.ac.manchester.tornado.api.exceptions.TornadoBailoutRuntimeException;
 import uk.ac.manchester.tornado.api.exceptions.TornadoNoOpenCLPlatformException;
 import uk.ac.manchester.tornado.api.exceptions.TornadoOutOfMemoryException;
 import uk.ac.manchester.tornado.api.exceptions.TornadoRuntimeException;
@@ -50,7 +48,8 @@ import uk.ac.manchester.tornado.runtime.common.TornadoOptions;
 
 public class CUDAContext implements CUDAContextInterface {
 
-    private final long contextID;
+    /** One context handle per device, indexed like {@link #devices}; {@code 0} until first use. */
+    private final long[] contextIDs;
     private final List<CUDATargetDevice> devices;
     private final List<CUDADeviceContext> deviceContexts;
 
@@ -61,9 +60,9 @@ public class CUDAContext implements CUDAContextInterface {
     /** Refcounted bookkeeping for user host memory pinned via {@code cuMemHostRegister}. */
     private final CUDAPinnedMemoryRegistry pinnedMemoryRegistry;
 
-    public CUDAContext(CUDAPlatform platform, long contextPointer, List<CUDATargetDevice> devices) {
+    public CUDAContext(CUDAPlatform platform, List<CUDATargetDevice> devices) {
         this.platform = platform;
-        this.contextID = contextPointer;
+        this.contextIDs = new long[devices.size()];
         this.devices = devices;
         this.deviceContexts = new ArrayList<>(devices.size());
         this.logger = new TornadoLogger(this.getClass());
@@ -92,7 +91,77 @@ public class CUDAContext implements CUDAContextInterface {
         if (context == null) {
             return;
         }
-        CUDADriverAPI.cuCtxDestroy(context.context());
+        CUDADriverAPI.cuDevicePrimaryCtxRelease(context.device());
+    }
+
+    /**
+     * Returns the handle of the context of the device at {@code deviceIndex}. The device's primary
+     * context is retained on first use, so GPUs a program never runs on are left untouched.
+     */
+    @Override
+    public synchronized long getContextId(int deviceIndex) {
+        if (contextIDs[deviceIndex] == 0) {
+            try {
+                contextIDs[deviceIndex] = CUDAPlatform.retainPrimaryContext(devices.get(deviceIndex).getDevicePointer());
+            } catch (CUDAException e) {
+                throw new TornadoBailoutRuntimeException(e.getMessage());
+            }
+        }
+        return contextIDs[deviceIndex];
+    }
+
+    /**
+     * Makes the context of the device at {@code deviceIndex} current on the calling thread. Driver
+     * calls that take no stream (allocation, event creation, the CUDA runtime under the native
+     * libraries) act on the current context, so they land on the right GPU only after this.
+     */
+    public void makeCurrent(int deviceIndex) {
+        CUDAHandles.Context context = CUDAHandles.resolve(getContextId(deviceIndex), CUDAHandles.Context.class);
+        if (context != null) {
+            CUDADriverAPI.cuCtxSetCurrent(context.context());
+        }
+    }
+
+    /**
+     * Runs the transfer warm-up of a device's context on a throwaway stream, so the first execution
+     * on that device does not pay for the driver's lazy set-up of its first copies.
+     */
+    public void warmUp(int deviceIndex) {
+        try {
+            long queue = clCreateCommandQueue(getContextId(deviceIndex), devices.get(deviceIndex).getDevicePointer(), getProperties());
+            CUDACommandQueue.clReleaseCommandQueue(queue);
+        } catch (CUDAException e) {
+            // Only an optimisation: the first real queue on the device warms the path again.
+            logger.debug("warm-up of device %d skipped: %s", deviceIndex, e.getMessage());
+        }
+    }
+
+    /**
+     * Waits for the outstanding work of every device that has a context. The lock is not held while
+     * waiting: the devices may be running work that other threads have to join first.
+     */
+    private void synchronizeAll() {
+        long[] ids;
+        synchronized (this) {
+            ids = contextIDs.clone();
+        }
+        for (long id : ids) {
+            CUDAHandles.Context context = id == 0 ? null : CUDAHandles.resolve(id, CUDAHandles.Context.class);
+            if (context != null) {
+                CUDADriverAPI.cuCtxSetCurrent(context.context());
+                CUDADriverAPI.cuCtxSynchronize();
+            }
+        }
+    }
+
+    /** Any context already in use; host-memory registration is portable, so which one does not matter. */
+    private synchronized long anyContextId() {
+        for (long id : contextIDs) {
+            if (id != 0) {
+                return id;
+            }
+        }
+        return getContextId(0);
     }
 
     void clGetContextInfo(long id, int info, byte[] buffer) throws CUDAException {
@@ -175,9 +244,15 @@ public class CUDAContext implements CUDAContextInterface {
     /**
      * Zero-initialises a device buffer. {@code cuMemAlloc} returns uninitialised device memory and
      * TornadoVM reuses pooled device buffers across executions, so a write-only output the kernel
-     * never writes (an early-returning kernel, say) would otherwise read back stale data. This is
-     * the synchronous variant, so the zeroing is complete before the buffer is used by a subsequent
-     * host-to-device copy or kernel launch.
+     * never writes (an early-returning kernel, say) would otherwise read back stale data.
+     *
+     * <p>{@code cuMemsetD8} on device memory is asynchronous with respect to the host, and it runs
+     * on the legacy default stream, which TornadoVM's streams -- created
+     * {@code CU_STREAM_NON_BLOCKING} -- are not ordered against. Without waiting for it, the
+     * zeroing can land after the plan's own stream has written the buffer (a library call or a
+     * kernel issued right after allocation), wiping what it wrote. So the legacy stream is
+     * synchronised here: the zeroing is complete before the buffer is handed out. This is on the
+     * allocation path only, not per execution.
      */
     int memSetZero(long contextId, long devicePointer, long bytes) {
         CUDAHandles.Context context = CUDAHandles.resolve(contextId, CUDAHandles.Context.class);
@@ -185,7 +260,11 @@ public class CUDAContext implements CUDAContextInterface {
             return CUDA_ERROR_INVALID_VALUE;
         }
         CUDADriverAPI.cuCtxSetCurrent(context.context());
-        return CUDADriverAPI.cuMemsetD8(devicePointer, (byte) 0, bytes);
+        int status = CUDADriverAPI.cuMemsetD8(devicePointer, (byte) 0, bytes);
+        if (status != 0) {
+            return status;
+        }
+        return CUDADriverAPI.cuStreamSynchronize(0L);
     }
 
     /** CUDA has no sub-buffer concept; the parent buffer stands in for one. */
@@ -193,9 +272,13 @@ public class CUDAContext implements CUDAContextInterface {
         return buffer;
     }
 
-    void clReleaseMemObject(long memId) throws CUDAException {
+    void clReleaseMemObject(long contextId, long memId) throws CUDAException {
         if (memId == 0) {
             return;
+        }
+        CUDAHandles.Context context = CUDAHandles.resolve(contextId, CUDAHandles.Context.class);
+        if (context != null) {
+            CUDADriverAPI.cuCtxSetCurrent(context.context());
         }
         // Transfers are asynchronous: drain outstanding work before releasing device memory,
         // otherwise the free races an in-flight copy or kernel that still uses this allocation.
@@ -246,18 +329,14 @@ public class CUDAContext implements CUDAContextInterface {
     }
 
     /**
-     * Unregisters host memory previously registered with {@link #cuMemHostRegister}. The context is
-     * synchronised first so no async DMA can still be reading or writing the region when the pin is
-     * dropped: unregistering under an in-flight copy is the data hazard, since the transfer would
-     * keep using the page-locked mapping while the driver tears it down.
+     * Unregisters host memory previously registered with {@link #cuMemHostRegister}. Every context
+     * is synchronised first so no async DMA can still be reading or writing the region when the pin
+     * is dropped: unregistering under an in-flight copy is the data hazard, since the transfer would
+     * keep using the page-locked mapping while the driver tears it down. The registration is
+     * portable, so a copy on any device may be using it.
      */
-    private static int cuMemHostUnregister(long contextId, long hostPointer) {
-        CUDAHandles.Context context = CUDAHandles.resolve(contextId, CUDAHandles.Context.class);
-        if (context == null) {
-            return -1;
-        }
-        CUDADriverAPI.cuCtxSetCurrent(context.context());
-        CUDADriverAPI.cuCtxSynchronize();
+    private int cuMemHostUnregister(long hostPointer) {
+        synchronizeAll();
         return CUDADriverAPI.cuMemHostUnregister(hostPointer);
     }
 
@@ -273,16 +352,89 @@ public class CUDAContext implements CUDAContextInterface {
      *     already covers this address (memory is pinned, but not owned by the caller).
      */
     public int registerPinnedMemory(long hostPointer, long numBytes) {
-        return cuMemHostRegister(contextID, hostPointer, numBytes);
+        return cuMemHostRegister(anyContextId(), hostPointer, numBytes);
     }
 
     /**
-     * Unregisters a previously pinned host region. The native call synchronises the
-     * context first, so no in-flight async DMA can still touch the region when the
-     * pin is dropped.
+     * Unregisters a previously pinned host region. Every context is synchronised
+     * first, so no in-flight async DMA can still touch the region when the pin is
+     * dropped.
      */
     public int unregisterPinnedMemory(long hostPointer) {
-        return cuMemHostUnregister(contextID, hostPointer);
+        return cuMemHostUnregister(hostPointer);
+    }
+
+    /** Unregisters host memory away from the threads that run plans (see {@link #unregisterPinnedMemoryLater}). */
+    private final java.util.concurrent.ExecutorService unpinner = java.util.concurrent.Executors.newSingleThreadExecutor(r -> {
+        Thread thread = new Thread(r, "tornado-cuda-unpin");
+        thread.setDaemon(true);
+        return thread;
+    });
+
+    /**
+     * Unregisters host memory on a thread of its own, then runs {@code done}. CUDA synchronises
+     * every device when host memory is unregistered, so a thread that runs plans can block there on
+     * work only it can unblock, such as an NCCL collective on another GPU waiting for this thread's
+     * next collective. The unpinning thread may wait as long as it takes.
+     */
+    public void unregisterPinnedMemoryLater(long hostPointer, Runnable done) {
+        unpinner.execute(() -> {
+            try {
+                cuMemHostUnregister(hostPointer);
+            } finally {
+                done.run();
+            }
+        });
+    }
+
+    /** Pinned host buffers of freed kernel stack frames, kept for the next frame; all of {@link #pinnedFrameBytes}. */
+    private final java.util.ArrayDeque<Long> pinnedFrames = new java.util.ArrayDeque<>();
+
+    private long pinnedFrameBytes;
+
+    /**
+     * A pinned host buffer of {@code bytes} for a kernel stack frame: one a freed frame left behind,
+     * or a new one, allocated and registered. Frame buffers stay pinned until {@link #cleanup}:
+     * CUDA synchronises every device when host memory is unregistered, so unregistering while a
+     * plan of another thread runs can deadlock against work only this thread can unblock, such as
+     * an NCCL collective on another GPU waiting for this rank's next collective.
+     *
+     * @return the buffer, or 0 when no off-heap memory could be allocated
+     */
+    public long acquirePinnedFrame(long bytes, long alignment) {
+        synchronized (pinnedFrames) {
+            if (bytes == pinnedFrameBytes && !pinnedFrames.isEmpty()) {
+                return pinnedFrames.pop();
+            }
+        }
+        long hostPointer = allocateOffHeapMemory(bytes, alignment);
+        if (hostPointer != 0) {
+            registerPinnedMemory(hostPointer, bytes);
+            synchronized (pinnedFrames) {
+                if (pinnedFrames.isEmpty()) {
+                    pinnedFrameBytes = bytes;
+                }
+            }
+        }
+        return hostPointer;
+    }
+
+    /**
+     * Returns the buffer of a freed kernel stack frame of the device at {@code deviceIndex} for reuse,
+     * once that device has no copy from it in flight. Only that device's context is synchronised,
+     * and no lock is held while waiting: the device may be running a collective that another
+     * thread has to join first.
+     */
+    public void releasePinnedFrame(long hostPointer, long bytes, int deviceIndex) {
+        makeCurrent(deviceIndex);
+        CUDADriverAPI.cuCtxSynchronize();
+        synchronized (pinnedFrames) {
+            if (bytes == pinnedFrameBytes) {
+                pinnedFrames.push(hostPointer);
+                return;
+            }
+        }
+        unregisterPinnedMemoryLater(hostPointer, () -> freeOffHeapMemory(hostPointer));
     }
 
     public int getNumDevices() {
@@ -291,11 +443,6 @@ public class CUDAContext implements CUDAContextInterface {
 
     public List<CUDATargetDevice> devices() {
         return devices;
-    }
-
-    @Override
-    public long getContextId() {
-        return contextID;
     }
 
     private void createCommandQueue(int index, long properties) {
@@ -308,7 +455,7 @@ public class CUDAContext implements CUDAContextInterface {
             logger.info("platform: version=%s (%s) on %s", platformVersion, platform.getVersion(), device.getDeviceName());
             logger.info("device  : version=%s (%s) on %s", deviceVersion, device.getVersion(), device.getDeviceName());
 
-            clCreateCommandQueue(contextID, device.getDevicePointer(), properties);
+            clCreateCommandQueue(getContextId(index), device.getDevicePointer(), properties);
         } catch (CUDAException e) {
             logger.error(e.getMessage());
             throw new TornadoRuntimeException("[ERROR] CUDADriver Command Queue Initialization not valid");
@@ -337,7 +484,7 @@ public class CUDAContext implements CUDAContextInterface {
         CUDAProgram program = null;
 
         try {
-            program = new CUDAProgram(clCreateProgramWithSource(contextID, source, lengths), deviceContext);
+            program = new CUDAProgram(clCreateProgramWithSource(getContextId(deviceContext.getDeviceIndex()), source, lengths), deviceContext);
         } catch (CUDAException e) {
             logger.error(e.getMessage());
         }
@@ -348,7 +495,7 @@ public class CUDAContext implements CUDAContextInterface {
     public CUDAProgram createProgramWithIL(byte[] spirvBinary, long[] lengths, CUDADeviceContext deviceContext) {
         CUDAProgram program;
         try {
-            long programID = clCreateProgramWithIL(contextID, spirvBinary, lengths);
+            long programID = clCreateProgramWithIL(getContextId(deviceContext.getDeviceIndex()), spirvBinary, lengths);
             if (programID == -1) {
                 throw new TornadoNoOpenCLPlatformException("CUDADriver version <= 2.1. clCreateProgramWithIL is not supported");
             }
@@ -364,7 +511,7 @@ public class CUDAContext implements CUDAContextInterface {
         CUDAProgram program = null;
 
         try {
-            program = new CUDAProgram(clCreateProgramWithBinary(contextID, deviceId, binary, lengths), deviceContext);
+            program = new CUDAProgram(clCreateProgramWithBinary(getContextId(deviceContext.getDeviceIndex()), deviceId, binary, lengths), deviceContext);
         } catch (CUDAException e) {
             logger.error(e.getMessage());
         }
@@ -373,6 +520,24 @@ public class CUDAContext implements CUDAContextInterface {
     }
 
     public void cleanup() {
+        unpinner.shutdown();
+        try {
+            if (!unpinner.awaitTermination(60, java.util.concurrent.TimeUnit.SECONDS)) {
+                logger.warn("host memory still being unregistered at shutdown");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+        synchronized (pinnedFrames) {
+            // pooled frames exist only once a context did
+            if (!pinnedFrames.isEmpty()) {
+                for (long hostPointer : pinnedFrames) {
+                    cuMemHostUnregister(hostPointer);
+                    freeOffHeapMemory(hostPointer);
+                }
+            }
+            pinnedFrames.clear();
+        }
 
         if (TornadoOptions.DUMP_EVENTS) {
             for (CUDADeviceContext deviceContext : deviceContexts) {
@@ -382,7 +547,14 @@ public class CUDAContext implements CUDAContextInterface {
 
         try {
             long t1 = System.nanoTime();
-            clReleaseContext(contextID);
+            synchronized (this) {
+                for (int i = 0; i < contextIDs.length; i++) {
+                    if (contextIDs[i] != 0) {
+                        clReleaseContext(contextIDs[i]);
+                        contextIDs[i] = 0;
+                    }
+                }
+            }
             long t2 = System.nanoTime();
 
             if (TornadoOptions.FULL_DEBUG) {
@@ -396,25 +568,24 @@ public class CUDAContext implements CUDAContextInterface {
 
     @Override
     public String toString() {
-        return String.format("id=0x%x, device count=%d", contextID, getNumDevices());
+        return String.format("platform=%d, device count=%d", getPlatformIndex(), getNumDevices());
     }
 
     @Override
     public CUDADeviceContext createDeviceContext(int index) {
         logger.debug("creating device context for device: %s", devices.get(index).toString());
-        createCommandQueue(index);
         final CUDADeviceContext deviceContext = new CUDADeviceContext(devices.get(index), this);
         deviceContexts.add(deviceContext);
         return deviceContext;
     }
 
-    public CUDABufferResult createBuffer(long flags, long bytes) {
-        return createBuffer(flags, bytes, 0L);
+    public CUDABufferResult createBuffer(int deviceIndex, long flags, long bytes) {
+        return createBuffer(deviceIndex, flags, bytes, 0L);
     }
 
-    private CUDABufferResult createBuffer(long flags, long bytes, long hostPointer) {
+    private CUDABufferResult createBuffer(int deviceIndex, long flags, long bytes, long hostPointer) {
         try {
-            final CUDABufferResult result = createBuffer(contextID, flags, bytes, hostPointer);
+            final CUDABufferResult result = createBuffer(getContextId(deviceIndex), flags, bytes, hostPointer);
             // cuMemAlloc reports failures (notably CUDA_ERROR_OUT_OF_MEMORY) via the
             // result status and a null device pointer rather than throwing. Surface it
             // as a clean exception here: otherwise the zero buffer is used by a later
@@ -433,9 +604,9 @@ public class CUDAContext implements CUDAContextInterface {
         return null;
     }
 
-    public void releaseBuffer(long bufferId) {
+    public void releaseBuffer(int deviceIndex, long bufferId) {
         try {
-            clReleaseMemObject(bufferId);
+            clReleaseMemObject(getContextId(deviceIndex), bufferId);
             logger.info("buffer released 0x%x", bufferId);
         } catch (CUDAException e) {
             logger.error(e.getMessage());
@@ -447,11 +618,11 @@ public class CUDAContext implements CUDAContextInterface {
      * device buffers do not expose stale/garbage data when a kernel does not
      * write all (or any) of an output buffer.
      */
-    public void zeroBuffer(long bufferId, long bytes) {
+    public void zeroBuffer(int deviceIndex, long bufferId, long bytes) {
         if (bufferId == 0 || bytes <= 0) {
             return;
         }
-        memSetZero(contextID, bufferId, bytes);
+        memSetZero(getContextId(deviceIndex), bufferId, bytes);
     }
 
     public int getPlatformIndex() {

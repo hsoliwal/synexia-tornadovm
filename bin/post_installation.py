@@ -145,32 +145,6 @@ def update_backend_file(selected_backends_str):
             print(f"  Actual:   {actual_content.strip()}")
 
 
-def copy_graal_jars():
-    """
-    Copy GraalVM JAR files to the Tornado SDK.
-
-    This function checks the Java version and copies GraalVM JAR files to the Tornado SDK's 'share/java/graalJars'
-    directory if the Java environment is not GraalVM.
-    """
-    tornado_sdk_path = os.environ.get("TORNADOVM_HOME")
-    java_version_output = subprocess.check_output(
-        ["java", "-version"], stderr=subprocess.STDOUT, universal_newlines=True
-    )
-
-    if "GraalVM" not in java_version_output:
-        graal_jars_dir = os.path.join(os.getcwd(), "graalJars")
-        destination_dir = os.path.join(tornado_sdk_path, "share", "java", "graalJars")
-        os.makedirs(destination_dir, exist_ok=True)
-        for filename in os.listdir(graal_jars_dir):
-            source_file = os.path.join(graal_jars_dir, filename)
-            destination_file = os.path.join(destination_dir, filename)
-            if os.path.isfile(source_file):
-                if is_win_or_bat():
-                    subprocess.run(["copy", "/b", "/y", source_file, destination_file], shell=True)
-                else:
-                    subprocess.run(["cp", source_file, destination_file])
-
-
 def generate_setvars_files():
     """
     Generate setvars.cmd (Windows) or setvars.sh (Unix/Linux/Mac) file with the correct TORNADOVM_HOME path.
@@ -405,11 +379,10 @@ def main():
     1. Update paths and symlinks to the new SDK
     2. Detect backends from SDK path
     3. Update the tornado.backend file
-    4. Copy GraalVM JARs if needed
-    5. Generate setvars files (setvars.sh / setvars.cmd)
-    6. Generate argfile template and expand it
-    7. Update IntelliJ test configuration
-    8. Run PyInstaller on Windows
+    4. Generate setvars files (setvars.sh / setvars.cmd)
+    5. Generate argfile template and expand it
+    6. Update IntelliJ test configuration
+    7. Run PyInstaller on Windows
     """
     # Update paths - this sets TORNADOVM_HOME environment variable from the SDK symlink
     update_paths()
@@ -426,9 +399,6 @@ def main():
 
     # Update backend file
     update_backend_file(selected_backends_str)
-
-    # Copy Graal JARs if not using GraalVM
-    copy_graal_jars()
 
     # Generate setvars files
     generate_setvars_files()

@@ -4,28 +4,25 @@
  *
  * Copyright (c) 2026, APT Group, Department of Computer Science,
  * School of Engineering, The University of Manchester. All rights reserved.
- * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
- * This code is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License version 2 only, as
- * published by the Free Software Foundation.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * This code is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
- * version 2 for more details (a copy is included in the LICENSE file that
- * accompanied this code).
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * You should have received a copy of the GNU General Public License version
- * 2 along with this work; if not, write to the Free Software Foundation,
- * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  *
  */
 package uk.ac.manchester.tornado.unittests.streams;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
 import uk.ac.manchester.tornado.api.TaskGraph;
@@ -59,7 +56,7 @@ import uk.ac.manchester.tornado.unittests.common.TornadoTestBase;
  *   <li>{@link #testMultipleIterations()} - repeated execution: event-registry reset and stream reuse.</li>
  *   <li>{@link #testSingleStreamGraphReplay()} - single-stream CUDA-graph capture/replay.</li>
  *   <li>{@link #testMultiStreamGraphReplay()} - multi-stream (fork/join) CUDA-graph capture/replay.</li>
- *   <li>{@link #testDecodeLoopConcurrent()} - a GPULlama3-shaped decode loop: {@code FIRST_EXECUTION}
+ *   <li>{@link #testDecodeLoopConcurrent()} - a jitllm-shaped decode loop: {@code FIRST_EXECUTION}
  *       resident weights + a serial per-token forward chain.</li>
  * </ol>
  *
@@ -85,7 +82,7 @@ public class TestCUDAStreams extends TornadoTestBase {
     private static final int GRAPH_N = 8192;       // CUDA-graph capture/replay arrays
     private static final int GRAPH_REPLAYS = 8;
 
-    private static final int LLAMA_DIM = 2048;     // GPULlama3-shaped decode loop
+    private static final int LLAMA_DIM = 2048;     // jitllm-shaped decode loop
     private static final int LLAMA_LAYERS = 6;
     private static final int LLAMA_TOKENS = 16;
     private static final float LLAMA_DELTA = 0.05f;
@@ -505,7 +502,7 @@ public class TestCUDAStreams extends TornadoTestBase {
     }
 
     // -------------------------------------------------------------------------
-    // GPULlama3-shaped decode loop (FIRST_EXECUTION resident weights + serial chain)
+    // jitllm-shaped decode loop (FIRST_EXECUTION resident weights + serial chain)
     // -------------------------------------------------------------------------
 
     /** 8. Decode loop with intra-plan concurrency (H2D / COMPUTE / D2H role streams). */

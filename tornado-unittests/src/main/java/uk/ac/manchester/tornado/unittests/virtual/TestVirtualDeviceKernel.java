@@ -21,11 +21,13 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.Arrays;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
 
 import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
 import uk.ac.manchester.tornado.api.TaskGraph;
@@ -52,13 +54,24 @@ public class TestVirtualDeviceKernel extends TornadoTestBase {
     private static final String SOURCE_DIR = System.getProperty("tornado.print.kernel.dir");
     private static final int SIZE = 8192;
 
+    /** The source position TC appends to a kernel line, e.g. {@code  // ReduceFactory.java:182}. */
+    private static final Pattern SOURCE_POSITION = Pattern.compile("\\s*// [\\w$]+\\.java:\\d+$");
+
     private static void maxReduction(float[] input, @Reduce float[] result) {
         for (@Parallel int i = 0; i < input.length; i++) {
             result[0] = Math.max(result[0], input[i]);
         }
     }
 
-    @After
+    /**
+     * The kernel text without the source positions of its lines: they change whenever the Java
+     * source of a kernel (or of a helper such as {@code ReduceFactory}) is edited, the code does not.
+     */
+    private static String withoutSourcePositions(byte[] kernel) {
+        return new String(kernel).lines().map(line -> SOURCE_POSITION.matcher(line).replaceFirst("").stripTrailing()).collect(Collectors.joining("\n")).strip();
+    }
+
+    @AfterEach
     public void after() {
         // make sure the source file generated is deleted
         if (SOURCE_DIR != null) {
@@ -97,11 +110,10 @@ public class TestVirtualDeviceKernel extends TornadoTestBase {
             generatedKernel = Files.readAllBytes(fileLog.toPath());
             expectedKernel = Files.readAllBytes(expectedKernelFile.toPath());
         } catch (IOException e) {
-            Assert.fail();
+            Assertions.fail();
         }
 
-        boolean fileEquivalent = TestVirtualDeviceFeatureExtraction.performComparison(generatedKernel, expectedKernel);
-        Assert.assertTrue("There is a mismatch between pre-compiled and JIT compiled kernels.", fileEquivalent);
+        Assertions.assertEquals(withoutSourcePositions(expectedKernel), withoutSourcePositions(generatedKernel), "There is a mismatch between pre-compiled and JIT compiled kernels.");
     }
 
     @Test

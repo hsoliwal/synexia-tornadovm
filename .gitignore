@@ -9,17 +9,16 @@ bin/sdk
 dist/
 docs/build/
 etc/dependencies/
-graalJars/
-graal_dumps/
 level-zero/
 levelzero-jni/
 setvars.sh
 setvars.cmd
 target/
+# A source package named target (tc.ir.target) is code, not build output.
+!tornado-compiler/**/src/**/target/
 tornado-annotation/target/
 tornado-assembly/target/
 tornado-assembly/tornado-assembly.iml
-tornado-benchmarks/target/
 tornado-drivers/drivers-common/target/
 tornado-drivers/opencl-jni/src/main/cpp/headers/
 tornado-drivers/opencl-jni/target/
@@ -33,3 +32,10 @@ OpenCL-Headers/
 tornado-assembly/src/etc/tornado.backend
 tornado-assembly/src/etc/tornado.jdk
 hs_err_pid*.log
+
+# IntelliJ run configurations are machine-local: the IDE rewrites them with
+# absolute, user-specific paths on every edit.
+.run/
+
+# javac argument files dumped by failed Maven compiles
+javac.*.args

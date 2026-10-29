@@ -4,35 +4,31 @@
  *
  * Copyright (c) 2013-2020, APT Group, Department of Computer Science,
  * The University of Manchester. All rights reserved.
- * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
- * This code is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License version 2 only, as
- * published by the Free Software Foundation.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * This code is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
- * version 2 for more details (a copy is included in the LICENSE file that
- * accompanied this code).
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * You should have received a copy of the GNU General Public License version
- * 2 along with this work; if not, write to the Free Software Foundation,
- * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  *
  */
 package uk.ac.manchester.tornado.runtime.graph;
 
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.List;
 import java.util.Objects;
 
-import jdk.vm.ci.meta.ResolvedJavaMethod;
 import uk.ac.manchester.tornado.api.common.Access;
 import uk.ac.manchester.tornado.api.common.SchedulableTask;
 import uk.ac.manchester.tornado.api.exceptions.TornadoRuntimeException;
-import uk.ac.manchester.tornado.runtime.TornadoCoreRuntime;
 import uk.ac.manchester.tornado.runtime.common.TornadoXPUDevice;
 import uk.ac.manchester.tornado.runtime.graph.nodes.AbstractNode;
 import uk.ac.manchester.tornado.runtime.graph.nodes.AllocateMultipleBuffersNode;
@@ -49,8 +45,6 @@ import uk.ac.manchester.tornado.runtime.graph.nodes.OnDeviceObjectNode;
 import uk.ac.manchester.tornado.runtime.graph.nodes.PersistedObjectNode;
 import uk.ac.manchester.tornado.runtime.graph.nodes.StreamInNode;
 import uk.ac.manchester.tornado.runtime.graph.nodes.TaskNode;
-import uk.ac.manchester.tornado.runtime.sketcher.Sketch;
-import uk.ac.manchester.tornado.runtime.sketcher.TornadoSketcher;
 import uk.ac.manchester.tornado.runtime.tasks.CompilableTask;
 import uk.ac.manchester.tornado.runtime.tasks.LocalObjectState;
 import uk.ac.manchester.tornado.runtime.tasks.TornadoGraphBitcodes;
@@ -138,6 +132,9 @@ public class TornadoGraphBuilder {
 
         final List<LocalObjectState> states = executionContext.getObjectStates();
 
+        // The node each object was bound to for its first appearance in the current task's argument list.
+        final AbstractNode[] argNodeInTask = new AbstractNode[objects.size()];
+
         boolean shouldExit = false;
         while (!shouldExit && buffer.hasRemaining()) {
             final byte op = buffer.get();
@@ -147,8 +144,18 @@ public class TornadoGraphBuilder {
                 args = new AbstractNode[size];
                 argIndex = 0;
                 taskNode = new TaskNode(context, taskIndex, args);
+                Arrays.fill(argNodeInTask, null);
             } else if (op == TornadoGraphBitcodes.LOAD_REF.index()) {
                 final int variableIndex = buffer.getInt();
+
+                // An object this task has already written, passed again to the same task (aliased
+                // arguments): bind it to the node of its first appearance. Its latest access node is
+                // the task's own write, so using that would make the task depend on itself.
+                if (objectNodes[variableIndex] instanceof DependentReadNode ownWrite && ownWrite.getDependent() == taskNode) {
+                    args[argIndex] = argNodeInTask[variableIndex];
+                    argIndex++;
+                    continue;
+                }
 
                 final AbstractNode arg = objectNodes[variableIndex];
                 if (!(arg instanceof ContextOpNode)) {
@@ -209,6 +216,9 @@ public class TornadoGraphBuilder {
                     nextAccessNode = args[argIndex];
                 }
 
+                if (argNodeInTask[variableIndex] == null) {
+                    argNodeInTask[variableIndex] = args[argIndex];
+                }
                 objectNodes[variableIndex] = nextAccessNode;
                 argIndex++;
 
@@ -251,9 +261,7 @@ public class TornadoGraphBuilder {
 
 
                 if (task instanceof CompilableTask compilableTask) {
-                    final ResolvedJavaMethod resolvedMethod = TornadoCoreRuntime.getTornadoRuntime().resolveMethod((compilableTask.getMethod()));
-                    Sketch sketch = TornadoSketcher.lookup(resolvedMethod, task.meta().getBackendIndex(), task.meta().getDeviceIndex());
-                    accesses = sketch.getArgumentsAccess();
+                    accesses = uk.ac.manchester.tornado.runtime.common.KernelAccess.of(compilableTask.getMethod(), compilableTask.meta().getArgumentsAccess().length);
                 } else {
                     accesses = task.getArgumentsAccess();
                 }

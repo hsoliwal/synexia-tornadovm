@@ -953,16 +953,16 @@ def validate_sdk(archive_path, jdk_home, skip_windows_executables=False, test_hy
         checks.append(
             (
                 [java_cmd, f"@{argfile_path}", "-cp", examples_jar,
-                 "uk.ac.manchester.tornado.examples.compute.MatrixVectorRowMajor"],
+                 "com.m3.tornado.examples.compute.MatrixVectorRowMajor"],
                 "MatrixVectorRowMajor",
                 _passed_by_returncode,
             )
         )
         if tornado_test_cmd is not None:
             for test_class in (
-                "uk.ac.manchester.tornado.unittests.cublas.TestCuBlas",
-                "uk.ac.manchester.tornado.unittests.cudnn.TestCuDnn",
-                "uk.ac.manchester.tornado.unittests.cufft.TestCuFft",
+                "com.m3.tornado.unittests.cublas.TestCuBlas",
+                "com.m3.tornado.unittests.cudnn.TestCuDnn",
+                "com.m3.tornado.unittests.cufft.TestCuFft",
             ):
                 checks.append(
                     ([*tornado_test_cmd, "-V", test_class], f"hybrid-api {test_class.rsplit('.', 1)[-1]}",

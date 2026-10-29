@@ -15,13 +15,13 @@
  * limitations under the License.
  *
  */
-open module tornado.fuzz {
-    requires transitive tornado.api;
+open module jdk.m3.tornado.fuzz {
+    requires transitive jdk.m3.tornado.api;
     requires java.compiler;
 
-    exports uk.ac.manchester.tornado.fuzz;
-    exports uk.ac.manchester.tornado.fuzz.oracle;
-    exports uk.ac.manchester.tornado.fuzz.kernels;
-    exports uk.ac.manchester.tornado.fuzz.report;
-    exports uk.ac.manchester.tornado.fuzz.gen;
+    exports com.m3.tornado.fuzz;
+    exports com.m3.tornado.fuzz.oracle;
+    exports com.m3.tornado.fuzz.kernels;
+    exports com.m3.tornado.fuzz.report;
+    exports com.m3.tornado.fuzz.gen;
 }

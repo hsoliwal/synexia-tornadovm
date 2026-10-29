@@ -15,23 +15,23 @@
  * limitations under the License.
  *
  */
-open module tornado.examples {
+open module jdk.m3.tornado.examples {
     requires transitive java.desktop;
-    requires transitive tornado.api;
-    requires tornado.cublas;
+    requires transitive jdk.m3.tornado.api;
+    requires jdk.m3.tornado.cublas;
     requires jdk.incubator.vector;
 
-    exports uk.ac.manchester.tornado.examples;
-    exports uk.ac.manchester.tornado.examples.arrays;
-    exports uk.ac.manchester.tornado.examples.common;
-    exports uk.ac.manchester.tornado.examples.compute;
-    exports uk.ac.manchester.tornado.examples.fft;
-    exports uk.ac.manchester.tornado.examples.flatmap;
-    exports uk.ac.manchester.tornado.examples.kernelcontext.compute;
-    exports uk.ac.manchester.tornado.examples.kernelcontext.matrices;
-    exports uk.ac.manchester.tornado.examples.kernelcontext.reductions;
-    exports uk.ac.manchester.tornado.examples.tile;
-    exports uk.ac.manchester.tornado.examples.matrices;
-    exports uk.ac.manchester.tornado.examples.reductions;
-    exports uk.ac.manchester.tornado.examples.vectors;
+    exports com.m3.tornado.examples;
+    exports com.m3.tornado.examples.arrays;
+    exports com.m3.tornado.examples.common;
+    exports com.m3.tornado.examples.compute;
+    exports com.m3.tornado.examples.fft;
+    exports com.m3.tornado.examples.flatmap;
+    exports com.m3.tornado.examples.kernelcontext.compute;
+    exports com.m3.tornado.examples.kernelcontext.matrices;
+    exports com.m3.tornado.examples.kernelcontext.reductions;
+    exports com.m3.tornado.examples.tile;
+    exports com.m3.tornado.examples.matrices;
+    exports com.m3.tornado.examples.reductions;
+    exports com.m3.tornado.examples.vectors;
 }

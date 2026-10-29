@@ -1,46 +1,46 @@
-import uk.ac.manchester.tornado.runtime.TornadoBackendProvider;
-import uk.ac.manchester.tornado.runtime.library.spi.TornadoLibraryProvider;
+import com.m3.tornado.runtime.TornadoBackendProvider;
+import com.m3.tornado.runtime.library.spi.TornadoLibraryProvider;
 
-open module tornado.runtime {
+open module jdk.m3.tornado.runtime {
     requires java.logging;
     requires jdk.unsupported;
     requires org.objectweb.asm;
     requires org.graalvm.collections;
 
     requires transitive jdk.internal.vm.ci;
-    requires transitive tornado.graal;
-    requires transitive tornado.api;
+    requires transitive jdk.m3.tornado.graal;
+    requires transitive jdk.m3.tornado.api;
     requires commons.math3;
     requires snmp4j;
     requires java.management;
 
-    exports uk.ac.manchester.tornado.runtime;
-    exports uk.ac.manchester.tornado.runtime.ffm;
-    exports uk.ac.manchester.tornado.runtime.analyzer;
-    exports uk.ac.manchester.tornado.runtime.common;
-    exports uk.ac.manchester.tornado.runtime.common.enums;
-    exports uk.ac.manchester.tornado.runtime.common.exceptions;
-    exports uk.ac.manchester.tornado.runtime.directives;
-    exports uk.ac.manchester.tornado.runtime.domain;
-    exports uk.ac.manchester.tornado.runtime.graal;
-    exports uk.ac.manchester.tornado.runtime.graal.backend;
-    exports uk.ac.manchester.tornado.runtime.graal.compiler;
-    exports uk.ac.manchester.tornado.runtime.graal.nodes;
-    exports uk.ac.manchester.tornado.runtime.graal.nodes.logic;
-    exports uk.ac.manchester.tornado.runtime.graal.nodes.calc;
-    exports uk.ac.manchester.tornado.runtime.graal.phases;
-    exports uk.ac.manchester.tornado.runtime.graph;
-    exports uk.ac.manchester.tornado.runtime.graph.nodes;
-    exports uk.ac.manchester.tornado.runtime.library;
-    exports uk.ac.manchester.tornado.runtime.library.spi;
-    exports uk.ac.manchester.tornado.runtime.profiler;
-    exports uk.ac.manchester.tornado.runtime.sketcher;
-    exports uk.ac.manchester.tornado.runtime.tasks;
-    exports uk.ac.manchester.tornado.runtime.tasks.meta;
-    exports uk.ac.manchester.tornado.runtime.utils;
-    exports uk.ac.manchester.tornado.runtime.graal.phases.sketcher;
-    exports uk.ac.manchester.tornado.runtime.graal.nodes.interfaces;
-    exports uk.ac.manchester.tornado.runtime.jvmci;
+    exports com.m3.tornado.runtime;
+    exports com.m3.tornado.runtime.ffm;
+    exports com.m3.tornado.runtime.analyzer;
+    exports com.m3.tornado.runtime.common;
+    exports com.m3.tornado.runtime.common.enums;
+    exports com.m3.tornado.runtime.common.exceptions;
+    exports com.m3.tornado.runtime.directives;
+    exports com.m3.tornado.runtime.domain;
+    exports com.m3.tornado.runtime.graal;
+    exports com.m3.tornado.runtime.graal.backend;
+    exports com.m3.tornado.runtime.graal.compiler;
+    exports com.m3.tornado.runtime.graal.nodes;
+    exports com.m3.tornado.runtime.graal.nodes.logic;
+    exports com.m3.tornado.runtime.graal.nodes.calc;
+    exports com.m3.tornado.runtime.graal.phases;
+    exports com.m3.tornado.runtime.graph;
+    exports com.m3.tornado.runtime.graph.nodes;
+    exports com.m3.tornado.runtime.library;
+    exports com.m3.tornado.runtime.library.spi;
+    exports com.m3.tornado.runtime.profiler;
+    exports com.m3.tornado.runtime.sketcher;
+    exports com.m3.tornado.runtime.tasks;
+    exports com.m3.tornado.runtime.tasks.meta;
+    exports com.m3.tornado.runtime.utils;
+    exports com.m3.tornado.runtime.graal.phases.sketcher;
+    exports com.m3.tornado.runtime.graal.nodes.interfaces;
+    exports com.m3.tornado.runtime.jvmci;
 
     uses TornadoBackendProvider;
     uses TornadoLibraryProvider;

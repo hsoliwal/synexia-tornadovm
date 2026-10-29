@@ -1,13 +1,13 @@
-open module tornado.cublas {
-    requires transitive tornado.api;
-    requires tornado.runtime;
+open module jdk.m3.tornado.cublas {
+    requires transitive jdk.m3.tornado.api;
+    requires jdk.m3.tornado.runtime;
 
-    exports uk.ac.manchester.tornado.cublas;
-    exports uk.ac.manchester.tornado.cublas.enums;
-    exports uk.ac.manchester.tornado.cublas.provider;
-    exports uk.ac.manchester.tornado.cublas.tests;
+    exports com.m3.tornado.cublas;
+    exports com.m3.tornado.cublas.enums;
+    exports com.m3.tornado.cublas.provider;
+    exports com.m3.tornado.cublas.tests;
 
-    provides uk.ac.manchester.tornado.runtime.library.spi.TornadoLibraryProvider with //
-            uk.ac.manchester.tornado.cublas.provider.CuBlasLibraryProvider, //
-            uk.ac.manchester.tornado.cublas.provider.CuBlasLtLibraryProvider;
+    provides com.m3.tornado.runtime.library.spi.TornadoLibraryProvider with //
+            com.m3.tornado.cublas.provider.CuBlasLibraryProvider, //
+            com.m3.tornado.cublas.provider.CuBlasLtLibraryProvider;
 }

@@ -15,12 +15,12 @@
  * limitations under the License.
  *
  */
-module tornado.matrices {
+module jdk.m3.tornado.matrices {
     requires ejml.core;
 
     requires transitive ejml.simple;
-    requires transitive tornado.api;
+    requires transitive jdk.m3.tornado.api;
 
-    exports uk.ac.manchester.tornado.matrix;
+    exports com.m3.tornado.matrix;
 
 }

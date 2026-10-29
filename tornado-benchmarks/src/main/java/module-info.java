@@ -15,34 +15,34 @@
  * limitations under the License.
  *
  */
-open module tornado.benchmarks {
+open module jdk.m3.tornado.benchmarks {
     requires org.apache.commons.lang3;
     requires java.logging;
     requires jmh.core;
 
-    requires transitive tornado.api;
-    requires transitive tornado.matrices;
+    requires transitive jdk.m3.tornado.api;
+    requires transitive jdk.m3.tornado.matrices;
 
-    exports uk.ac.manchester.tornado.benchmarks;
-    exports uk.ac.manchester.tornado.benchmarks.addImage;
-    exports uk.ac.manchester.tornado.benchmarks.blackscholes;
-    exports uk.ac.manchester.tornado.benchmarks.blurFilter;
-    exports uk.ac.manchester.tornado.benchmarks.convolvearray;
-    exports uk.ac.manchester.tornado.benchmarks.convolveimage;
-    exports uk.ac.manchester.tornado.benchmarks.dft;
-    exports uk.ac.manchester.tornado.benchmarks.dgemm;
-    exports uk.ac.manchester.tornado.benchmarks.dotimage;
-    exports uk.ac.manchester.tornado.benchmarks.dotvector;
-    exports uk.ac.manchester.tornado.benchmarks.euler;
-    exports uk.ac.manchester.tornado.benchmarks.hilbert;
-    exports uk.ac.manchester.tornado.benchmarks.mandelbrot;
-    exports uk.ac.manchester.tornado.benchmarks.montecarlo;
-    exports uk.ac.manchester.tornado.benchmarks.nbody;
-    exports uk.ac.manchester.tornado.benchmarks.rotateimage;
-    exports uk.ac.manchester.tornado.benchmarks.rotatevector;
-    exports uk.ac.manchester.tornado.benchmarks.saxpy;
-    exports uk.ac.manchester.tornado.benchmarks.sgemm;
-    exports uk.ac.manchester.tornado.benchmarks.sgemv;
-    exports uk.ac.manchester.tornado.benchmarks.spmv;
-    exports uk.ac.manchester.tornado.benchmarks.stencil;
+    exports com.m3.tornado.benchmarks;
+    exports com.m3.tornado.benchmarks.addImage;
+    exports com.m3.tornado.benchmarks.blackscholes;
+    exports com.m3.tornado.benchmarks.blurFilter;
+    exports com.m3.tornado.benchmarks.convolvearray;
+    exports com.m3.tornado.benchmarks.convolveimage;
+    exports com.m3.tornado.benchmarks.dft;
+    exports com.m3.tornado.benchmarks.dgemm;
+    exports com.m3.tornado.benchmarks.dotimage;
+    exports com.m3.tornado.benchmarks.dotvector;
+    exports com.m3.tornado.benchmarks.euler;
+    exports com.m3.tornado.benchmarks.hilbert;
+    exports com.m3.tornado.benchmarks.mandelbrot;
+    exports com.m3.tornado.benchmarks.montecarlo;
+    exports com.m3.tornado.benchmarks.nbody;
+    exports com.m3.tornado.benchmarks.rotateimage;
+    exports com.m3.tornado.benchmarks.rotatevector;
+    exports com.m3.tornado.benchmarks.saxpy;
+    exports com.m3.tornado.benchmarks.sgemm;
+    exports com.m3.tornado.benchmarks.sgemv;
+    exports com.m3.tornado.benchmarks.spmv;
+    exports com.m3.tornado.benchmarks.stencil;
 }

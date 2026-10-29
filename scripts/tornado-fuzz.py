@@ -30,7 +30,7 @@ import subprocess
 import sys
 import threading
 
-MAIN = "tornado.fuzz/uk.ac.manchester.tornado.fuzz.FuzzMain"
+MAIN = "jdk.m3.tornado.fuzz/com.m3.tornado.fuzz.FuzzMain"
 CASE_RE = re.compile(r"CASE seed=(\d+)")
 
 

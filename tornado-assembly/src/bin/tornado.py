@@ -51,11 +51,11 @@ __TORNADOVM_DUMP_BYTECODES_DIR__ = " -Dtornado.print.bytecodes=True -Dtornado.du
 # will be loaded at runtime.
 # ########################################################
 __TORNADOVM_PROVIDERS__ = """\
--Dtornado.load.api.implementation=uk.ac.manchester.tornado.runtime.tasks.TornadoTaskGraph \
--Dtornado.load.runtime.implementation=uk.ac.manchester.tornado.runtime.TornadoCoreRuntime \
--Dtornado.load.tornado.implementation=uk.ac.manchester.tornado.runtime.common.Tornado \
--Dtornado.load.annotation.implementation=uk.ac.manchester.tornado.annotation.ASMClassVisitor \
--Dtornado.load.annotation.parallel=uk.ac.manchester.tornado.api.annotations.Parallel """
+-Dtornado.load.api.implementation=com.m3.tornado.runtime.tasks.TornadoTaskGraph \
+-Dtornado.load.runtime.implementation=com.m3.tornado.runtime.TornadoCoreRuntime \
+-Dtornado.load.tornado.implementation=com.m3.tornado.runtime.common.Tornado \
+-Dtornado.load.annotation.implementation=com.m3.tornado.annotation.ASMClassVisitor \
+-Dtornado.load.annotation.parallel=com.m3.tornado.api.annotations.Parallel """
 
 # ########################################################
 # BACKEND FILES AND MODULES
@@ -64,18 +64,18 @@ __COMMON_EXPORTS__ = "/etc/exportLists/common-exports"
 __OPENCL_EXPORTS__ = "/etc/exportLists/opencl-exports"
 __METAL_EXPORTS__ = "/etc/exportLists/metal-exports"
 __CUDA_EXPORTS__ = "/etc/exportLists/cuda-exports"
-__TORNADOVM_ADD_MODULES__ = "--add-modules jdk.unsupported,java.management,java.logging,jdk.jfr,java.naming,jdk.management,tornado.graal,tornado.runtime,tornado.annotation,tornado.drivers.common"
-__OPENCL_MODULE__ = "tornado.drivers.opencl"
-__METAL_MODULE__ = "tornado.drivers.metal"
-__CUDA_MODULE__ = "tornado.drivers.cuda"
+__TORNADOVM_ADD_MODULES__ = "--add-modules jdk.unsupported,java.management,java.logging,jdk.jfr,java.naming,jdk.management,jdk.m3.tornado.graal,jdk.m3.tornado.runtime,jdk.m3.tornado.annotation,jdk.m3.tornado.drivers.common"
+__OPENCL_MODULE__ = "jdk.m3.tornado.drivers.opencl"
+__METAL_MODULE__ = "jdk.m3.tornado.drivers.metal"
+__CUDA_MODULE__ = "jdk.m3.tornado.drivers.cuda"
 __ENABLE_NATIVE_ACCESS__ = "--enable-native-access="
-__FFM_MODULE__ = "tornado.runtime"
-__CUBLAS_MODULE__ = "tornado.cublas"
-__CURAND_MODULE__ = "tornado.curand"
-__CUFFT_MODULE__ = "tornado.cufft"
-__CUDNN_MODULE__ = "tornado.cudnn"
-__CUSPARSE_MODULE__ = "tornado.cusparse"
-__CUTLASS_MODULE__ = "tornado.cutlass"
+__FFM_MODULE__ = "jdk.m3.tornado.runtime"
+__CUBLAS_MODULE__ = "jdk.m3.tornado.cublas"
+__CURAND_MODULE__ = "jdk.m3.tornado.curand"
+__CUFFT_MODULE__ = "jdk.m3.tornado.cufft"
+__CUDNN_MODULE__ = "jdk.m3.tornado.cudnn"
+__CUSPARSE_MODULE__ = "jdk.m3.tornado.cusparse"
+__CUTLASS_MODULE__ = "jdk.m3.tornado.cutlass"
 
 # ########################################################
 # JAVA FLAGS
@@ -1396,7 +1396,7 @@ class TornadoVMRunnerTool():
             sys.exit(0)
 
         if (args.showDevices):
-            command = javaFlags + "uk.ac.manchester.tornado.drivers.TornadoDeviceQuery verbose"
+            command = javaFlags + "com.m3.tornado.drivers.TornadoDeviceQuery verbose"
             os.system(command)
             sys.exit(0)
 

@@ -1,11 +1,11 @@
-open module tornado.cutlass {
-    requires transitive tornado.api;
-    requires tornado.runtime;
+open module jdk.m3.tornado.cutlass {
+    requires transitive jdk.m3.tornado.api;
+    requires jdk.m3.tornado.runtime;
 
-    exports uk.ac.manchester.tornado.cutlass;
-    exports uk.ac.manchester.tornado.cutlass.provider;
-    exports uk.ac.manchester.tornado.cutlass.tests;
+    exports com.m3.tornado.cutlass;
+    exports com.m3.tornado.cutlass.provider;
+    exports com.m3.tornado.cutlass.tests;
 
-    provides uk.ac.manchester.tornado.runtime.library.spi.TornadoLibraryProvider with //
-            uk.ac.manchester.tornado.cutlass.provider.CutlassLibraryProvider;
+    provides com.m3.tornado.runtime.library.spi.TornadoLibraryProvider with //
+            com.m3.tornado.cutlass.provider.CutlassLibraryProvider;
 }

@@ -1,10 +1,10 @@
-open module tornado.cusparse {
-    requires transitive tornado.api;
-    requires tornado.runtime;
+open module jdk.m3.tornado.cusparse {
+    requires transitive jdk.m3.tornado.api;
+    requires jdk.m3.tornado.runtime;
 
-    exports uk.ac.manchester.tornado.cusparse;
-    exports uk.ac.manchester.tornado.cusparse.provider;
+    exports com.m3.tornado.cusparse;
+    exports com.m3.tornado.cusparse.provider;
 
-    provides uk.ac.manchester.tornado.runtime.library.spi.TornadoLibraryProvider with //
-            uk.ac.manchester.tornado.cusparse.provider.CusparseLibraryProvider;
+    provides com.m3.tornado.runtime.library.spi.TornadoLibraryProvider with //
+            com.m3.tornado.cusparse.provider.CusparseLibraryProvider;
 }

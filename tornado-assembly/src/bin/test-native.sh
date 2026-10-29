@@ -20,15 +20,15 @@
 read -ra selected_backends < "${TORNADOVM_HOME}/etc/tornado.backend"
 if [[ $selected_backends == *"opencl"* ]]; then
   echo -e "\nTesting the Native OpenCL API\n"
-  tornado uk.ac.manchester.tornado.drivers.opencl.tests.TestOpenCLJITCompiler
-  tornado uk.ac.manchester.tornado.drivers.opencl.tests.TestOpenCLTornadoCompiler
+  tornado com.m3.tornado.drivers.opencl.tests.TestOpenCLJITCompiler
+  tornado com.m3.tornado.drivers.opencl.tests.TestOpenCLTornadoCompiler
 fi
 
 if [[ $selected_backends == *"cuda"* ]]; then
   echo -e "\nTesting the Native CUDA API\n"
-  tornado uk.ac.manchester.tornado.drivers.cuda.tests.TestCUDAJITCompiler
-  tornado uk.ac.manchester.tornado.drivers.cuda.tests.TestCUDATornadoCompiler
-  tornado uk.ac.manchester.tornado.drivers.cuda.tests.TestHalf2PackedCodegen
+  tornado com.m3.tornado.drivers.cuda.tests.TestCUDAJITCompiler
+  tornado com.m3.tornado.drivers.cuda.tests.TestCUDATornadoCompiler
+  tornado com.m3.tornado.drivers.cuda.tests.TestHalf2PackedCodegen
 fi
 
 echo " "

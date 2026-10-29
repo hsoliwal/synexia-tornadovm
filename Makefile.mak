@@ -73,49 +73,49 @@ checkstyle:
 test-reflection:
 	.\mvnw -P$(JDK_PROFILE) -pl tornado-api,tornado-runtime -am clean test -DskipTests=false
 
-# Only the reflection JVMCI-layer suites (uk.ac.manchester.tornado.runtime.jvmci.reflection.*Test) —
+# Only the reflection JVMCI-layer suites (com.m3.tornado.runtime.jvmci.reflection.*Test) —
 # the standalone metadata API, a subset of what test-reflection runs. Same JDK override and
 # clean+-am rationale as test-reflection.
 test-reflection-only:
-	.\mvnw -P$(JDK_PROFILE) -pl tornado-api,tornado-runtime -am clean test -DskipTests=false -Dtest="uk.ac.manchester.tornado.runtime.jvmci.reflection.*Test"
+	.\mvnw -P$(JDK_PROFILE) -pl tornado-api,tornado-runtime -am clean test -DskipTests=false -Dtest="com.m3.tornado.runtime.jvmci.reflection.*Test"
 
 clean:
 	.\mvnw -Popencl-backend,cuda-backend clean
 
 example:
-	%TORNADOVM_HOME%\bin\tornado.exe --printKernel --debug -m tornado.examples/uk.ac.manchester.tornado.examples.VectorAddInt --params="8192"
+	%TORNADOVM_HOME%\bin\tornado.exe --printKernel --debug -m jdk.m3.tornado.examples/com.m3.tornado.examples.VectorAddInt --params="8192"
 
 tests:
 	del /f tornado_unittests.log
 	%TORNADOVM_HOME%\bin\tornado.exe --devices
 	%TORNADOVM_HOME%\bin\tornado-test.exe --verbose
-	%TORNADOVM_HOME%\bin\tornado-test.exe -V -J"-Dtornado.device.memory=1MB" uk.ac.manchester.tornado.unittests.fails.HeapFail#test03
+	%TORNADOVM_HOME%\bin\tornado-test.exe -V -J"-Dtornado.device.memory=1MB" com.m3.tornado.unittests.fails.HeapFail#test03
 	%TORNADOVM_HOME%\bin\test-native.cmd
 
 fast-tests:
 	del /f tornado_unittests.log
 	%TORNADOVM_HOME%\bin\tornado.exe --devices
 	%TORNADOVM_HOME%\bin\tornado-test.exe --verbose --quickPass
-	%TORNADOVM_HOME%\bin\tornado-test.exe -V -J"-Dtornado.device.memory=1MB" uk.ac.manchester.tornado.unittests.fails.HeapFail#test03
+	%TORNADOVM_HOME%\bin\tornado-test.exe -V -J"-Dtornado.device.memory=1MB" com.m3.tornado.unittests.fails.HeapFail#test03
 	%TORNADOVM_HOME%\bin\test-native.cmd
 
 tests-uncompressed:
 	del /f tornado_unittests.log
 	%TORNADOVM_HOME%\bin\tornado.exe --devices
 	%TORNADOVM_HOME%\bin\tornado-test.exe --verbose --uncompressed
-	%TORNADOVM_HOME%\bin\tornado-test.exe -V --uncompressed -J"-Dtornado.device.memory=1MB" uk.ac.manchester.tornado.unittests.fails.HeapFail#test03
+	%TORNADOVM_HOME%\bin\tornado-test.exe -V --uncompressed -J"-Dtornado.device.memory=1MB" com.m3.tornado.unittests.fails.HeapFail#test03
 	%TORNADOVM_HOME%\bin\test-native.cmd
 
 fast-tests-uncompressed:
 	del /f tornado_unittests.log
 	%TORNADOVM_HOME%\bin\tornado.exe --devices
 	%TORNADOVM_HOME%\bin\tornado-test.exe --verbose --quickPass --uncompressed
-	%TORNADOVM_HOME%\bin\tornado-test.exe -V --uncompressed -J"-Dtornado.device.memory=1MB" uk.ac.manchester.tornado.unittests.fails.HeapFail#test03
+	%TORNADOVM_HOME%\bin\tornado-test.exe -V --uncompressed -J"-Dtornado.device.memory=1MB" com.m3.tornado.unittests.fails.HeapFail#test03
 	%TORNADOVM_HOME%\bin\test-native.cmd
 
 
 test-slam:
-	%TORNADOVM_HOME%\bin\tornado-test.exe -V --fast uk.ac.manchester.tornado.unittests.slam.GraphicsTests
+	%TORNADOVM_HOME%\bin\tornado-test.exe -V --fast com.m3.tornado.unittests.slam.GraphicsTests
 
 docs:
 	sphinx-build -M html docs/source/ docs/build

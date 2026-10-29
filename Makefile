@@ -102,48 +102,48 @@ test-reflection:
 test-cuda-codegen:
 	./mvnw -P$(JDK_PROFILE),cuda-backend -Dtornado.backend=cuda -pl tornado-drivers/cuda -am test -DskipTests=false
 
-# Only the reflection JVMCI-layer suites (uk.ac.manchester.tornado.runtime.jvmci.reflection.*Test) —
+# Only the reflection JVMCI-layer suites (com.m3.tornado.runtime.jvmci.reflection.*Test) —
 # the standalone metadata API, a subset of what test-reflection runs. Same JDK override and
 # clean+-am rationale as test-reflection.
 test-reflection-only:
-	./mvnw -P$(JDK_PROFILE) -pl tornado-api,tornado-runtime -am clean test -DskipTests=false -Dtest="uk.ac.manchester.tornado.runtime.jvmci.reflection.*Test"
+	./mvnw -P$(JDK_PROFILE) -pl tornado-api,tornado-runtime -am clean test -DskipTests=false -Dtest="com.m3.tornado.runtime.jvmci.reflection.*Test"
 
 clean:
 	./mvnw -Popencl-backend,cuda-backend,metal-backend clean
 
 example:
-	tornado --printKernel --debug -m tornado.examples/uk.ac.manchester.tornado.examples.VectorAddInt --params="8192"
+	tornado --printKernel --debug -m jdk.m3.tornado.examples/com.m3.tornado.examples.VectorAddInt --params="8192"
 
 tests:
 	rm -f tornado_unittests.log
 	tornado --devices
 	tornado-test --verbose
-	tornado-test -V -J"-Dtornado.device.memory=1MB" uk.ac.manchester.tornado.unittests.fails.HeapFail#test03
+	tornado-test -V -J"-Dtornado.device.memory=1MB" com.m3.tornado.unittests.fails.HeapFail#test03
 	test-native.sh
 
 fast-tests:
 	rm -f tornado_unittests.log
 	tornado --devices
 	tornado-test --verbose --quickPass
-	tornado-test -V -J"-Dtornado.device.memory=1MB" uk.ac.manchester.tornado.unittests.fails.HeapFail#test03
+	tornado-test -V -J"-Dtornado.device.memory=1MB" com.m3.tornado.unittests.fails.HeapFail#test03
 	test-native.sh
 
 tests-uncompressed:
 	rm -f tornado_unittests.log
 	tornado --devices
 	tornado-test --verbose --uncompressed
-	tornado-test -V --uncompressed -J"-Dtornado.device.memory=1MB" uk.ac.manchester.tornado.unittests.fails.HeapFail#test03
+	tornado-test -V --uncompressed -J"-Dtornado.device.memory=1MB" com.m3.tornado.unittests.fails.HeapFail#test03
 	test-native.sh
 
 fast-tests-uncompressed:
 	rm -f tornado_unittests.log
 	tornado --devices
 	tornado-test --verbose --quickPass --uncompressed
-	tornado-test -V --uncompressed -J"-Dtornado.device.memory=1MB" uk.ac.manchester.tornado.unittests.fails.HeapFail#test03
+	tornado-test -V --uncompressed -J"-Dtornado.device.memory=1MB" com.m3.tornado.unittests.fails.HeapFail#test03
 	test-native.sh
 
 test-slam:
-	tornado-test -V --fast uk.ac.manchester.tornado.unittests.slam.GraphicsTests
+	tornado-test -V --fast com.m3.tornado.unittests.slam.GraphicsTests
 
 docs:
 	sphinx-build -M html docs/source/ docs/build

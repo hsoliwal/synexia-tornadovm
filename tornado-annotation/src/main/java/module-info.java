@@ -15,10 +15,10 @@
  * limitations under the License.
  *
  */
-module tornado.annotation {
+module jdk.m3.tornado.annotation {
     requires transitive jdk.internal.vm.ci;
     requires transitive org.objectweb.asm;
-    requires transitive tornado.runtime;
+    requires transitive jdk.m3.tornado.runtime;
 
-    exports uk.ac.manchester.tornado.annotation;
+    exports com.m3.tornado.annotation;
 }

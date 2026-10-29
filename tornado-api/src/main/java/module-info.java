@@ -15,47 +15,47 @@
  * limitations under the License.
  *
  */
-module tornado.api {
+module jdk.m3.tornado.api {
     requires java.management;
-    exports uk.ac.manchester.tornado.api;
-    exports uk.ac.manchester.tornado.api.annotations;
-    exports uk.ac.manchester.tornado.api.common;
-    exports uk.ac.manchester.tornado.api.enums;
-    exports uk.ac.manchester.tornado.api.exceptions;
-    exports uk.ac.manchester.tornado.api.memory;
-    exports uk.ac.manchester.tornado.api.profiler;
-    exports uk.ac.manchester.tornado.api.runtime;
-    exports uk.ac.manchester.tornado.api.tile;
-    exports uk.ac.manchester.tornado.api.internal.annotations;
-    exports uk.ac.manchester.tornado.api.utils;
+    exports com.m3.tornado.api;
+    exports com.m3.tornado.api.annotations;
+    exports com.m3.tornado.api.common;
+    exports com.m3.tornado.api.enums;
+    exports com.m3.tornado.api.exceptions;
+    exports com.m3.tornado.api.memory;
+    exports com.m3.tornado.api.profiler;
+    exports com.m3.tornado.api.runtime;
+    exports com.m3.tornado.api.tile;
+    exports com.m3.tornado.api.internal.annotations;
+    exports com.m3.tornado.api.utils;
 
-    opens uk.ac.manchester.tornado.api;
+    opens com.m3.tornado.api;
     // Still required: marking TileContext host-only in the interpreter stops it consuming a
     // kernel argument slot, but the ALLOC path builds its object list elsewhere and still
     // creates a (never used) device buffer by reflecting over the context's fields - exactly as
     // it already does for KernelContext. Skipping that allocation for host-only contexts would
     // let this be dropped, and would help KernelContext too.
-    opens uk.ac.manchester.tornado.api.tile;
-    exports uk.ac.manchester.tornado.api.math;
-    exports uk.ac.manchester.tornado.api.types.arrays;
-    opens uk.ac.manchester.tornado.api.types.arrays;
-    exports uk.ac.manchester.tornado.api.types.collections;
-    opens uk.ac.manchester.tornado.api.types.collections;
-    exports uk.ac.manchester.tornado.api.types.matrix;
-    opens uk.ac.manchester.tornado.api.types.matrix;
-    opens uk.ac.manchester.tornado.api.types.images;
-    exports uk.ac.manchester.tornado.api.types.images;
-    exports uk.ac.manchester.tornado.api.types.utils;
-    opens uk.ac.manchester.tornado.api.types.utils;
-    exports uk.ac.manchester.tornado.api.types.common;
-    opens uk.ac.manchester.tornado.api.types.common;
-    exports uk.ac.manchester.tornado.api.types.volumes;
-    opens uk.ac.manchester.tornado.api.types.volumes;
-    exports uk.ac.manchester.tornado.api.types.vectors;
-    opens uk.ac.manchester.tornado.api.types.vectors;
-    exports uk.ac.manchester.tornado.api.types;
-    opens uk.ac.manchester.tornado.api.types;
-    opens uk.ac.manchester.tornado.api.runtime;
-    exports uk.ac.manchester.tornado.api.plan.types;
-    opens uk.ac.manchester.tornado.api.plan.types;
+    opens com.m3.tornado.api.tile;
+    exports com.m3.tornado.api.math;
+    exports com.m3.tornado.api.types.arrays;
+    opens com.m3.tornado.api.types.arrays;
+    exports com.m3.tornado.api.types.collections;
+    opens com.m3.tornado.api.types.collections;
+    exports com.m3.tornado.api.types.matrix;
+    opens com.m3.tornado.api.types.matrix;
+    opens com.m3.tornado.api.types.images;
+    exports com.m3.tornado.api.types.images;
+    exports com.m3.tornado.api.types.utils;
+    opens com.m3.tornado.api.types.utils;
+    exports com.m3.tornado.api.types.common;
+    opens com.m3.tornado.api.types.common;
+    exports com.m3.tornado.api.types.volumes;
+    opens com.m3.tornado.api.types.volumes;
+    exports com.m3.tornado.api.types.vectors;
+    opens com.m3.tornado.api.types.vectors;
+    exports com.m3.tornado.api.types;
+    opens com.m3.tornado.api.types;
+    opens com.m3.tornado.api.runtime;
+    exports com.m3.tornado.api.plan.types;
+    opens com.m3.tornado.api.plan.types;
 }

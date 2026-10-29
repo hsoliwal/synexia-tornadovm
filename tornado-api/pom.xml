@@ -4,11 +4,11 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <artifactId>tornado</artifactId>
-        <groupId>io.github.beehive-lab</groupId>
+        <groupId>com.m3.tornado</groupId>
         <version>${revision}</version>
     </parent>
     <description>TornadoVM API: A high-level programming interface for accelerating Java applications on heterogeneous hardware</description>
-    <groupId>io.github.beehive-lab</groupId>
+    <groupId>com.m3.tornado</groupId>
     <artifactId>tornado-api</artifactId>
     <version>${revision}</version>
     <name>tornado-api</name>

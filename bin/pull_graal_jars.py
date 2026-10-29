@@ -138,16 +138,20 @@ def unusable_relocated_jar_reason(jar_path):
         return "JAVA_HOME is not set"
 
     probe = subprocess.run([os.path.join(java_home, "bin", "jar"), "--describe-module", "--file", jar_path],
-                           stdout=subprocess.DEVNULL, stderr=subprocess.PIPE, text=True)
+                           stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     if probe.returncode != 0:
         # First stderr line carries the exception; the rest is a stack trace.
         detail = next((ln.strip() for ln in probe.stderr.splitlines() if ln.strip()), "unreadable module descriptor")
         return f"not readable by the build JDK ({detail})"
 
+    if not any(line.startswith(("jdk.m3.tornado.graal ", "jdk.m3.tornado.graal@"))
+               for line in probe.stdout.splitlines()):
+        return "module name does not match jdk.m3.tornado.graal"
+
     with zipfile.ZipFile(jar_path) as staged:
         unrelocated = sorted({os.path.dirname(name).replace("/", ".")
                               for name in staged.namelist()
-                              if name.startswith("org/graalvm/") and name.endswith(".class")})
+                              if name.startswith(("org/graalvm/", "tornado/graal/")) and name.endswith(".class")})
     if unrelocated:
         return f"still carries un-relocated packages ({', '.join(unrelocated[:3])}...)"
 

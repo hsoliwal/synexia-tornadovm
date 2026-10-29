@@ -3,7 +3,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>io.github.beehive-lab</groupId>
+    <groupId>com.m3.tornado</groupId>
     <artifactId>tornado</artifactId>
     <version>${revision}</version>
     <packaging>pom</packaging>
@@ -795,9 +795,9 @@
 
         <dependency>
             <!-- Frozen Graal 23.1.0 relocated (org.graalvm.compiler.* to
-                 tornado.graal.compiler.*) into the vendored module tornado.graal by
+                 com.m3.tornado.graal.compiler.*) into the vendored module tornado.graal by
                  bin/build_graal_module.py, so it lives on the regular module-path. -->
-            <groupId>tornado.graal</groupId>
+            <groupId>com.m3.tornado.graal</groupId>
             <artifactId>tornado-graal</artifactId>
             <version>23.1.0</version>
             <scope>provided</scope>

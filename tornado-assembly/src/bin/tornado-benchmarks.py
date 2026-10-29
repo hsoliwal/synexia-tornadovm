@@ -58,8 +58,8 @@ __JAVA_VERSION__ = (
 ## ========================================================================================
 __RUNNER__ = ""
 if __JAVA_VERSION__ != JDK_8_VERSION:
-    __RUNNER__ = " -m tornado.benchmarks/"
-__RUNNER__ += "uk.ac.manchester.tornado.benchmarks.BenchmarkRunner "
+    __RUNNER__ = " -m jdk.m3.tornado.benchmarks/"
+__RUNNER__ += "com.m3.tornado.benchmarks.BenchmarkRunner "
 __JVM_FLAGS__ = "-Xms24G -Xmx24G -server -Dtornado.recover.bailout=False "
 __TORNADO_COMMAND__ = "tornado "
 __SKIP_TORNADOVM__ = " -Dtornado.benchmarks.skiptornadovm=True "

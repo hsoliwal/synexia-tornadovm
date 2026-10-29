@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   Standalone helper POM used by bin/build_graal_module.py to relocate the frozen
-  Graal compiler (org.graalvm.compiler.* to tornado.graal.compiler.*) so it can be
+  Graal compiler (org.graalvm.compiler.* to com.m3.tornado.graal.compiler.*) so it can be
   vendored as a normal application module (tornado.graal) on the regular module-path,
   removing the need for the upgrade-module-path graalJars mechanism.
 
@@ -13,7 +13,7 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <groupId>tornado.graal</groupId>
+    <groupId>com.m3.tornado.graal</groupId>
     <artifactId>tornado-graal</artifactId>
     <version>23.1.0</version>
     <packaging>jar</packaging>
@@ -78,15 +78,15 @@
                             <relocations>
                                 <relocation>
                                     <pattern>org.graalvm.compiler</pattern>
-                                    <shadedPattern>tornado.graal.compiler</shadedPattern>
+                                    <shadedPattern>com.m3.tornado.graal.compiler</shadedPattern>
                                 </relocation>
                                 <relocation>
                                     <pattern>org.graalvm.graphio</pattern>
-                                    <shadedPattern>tornado.graal.graphio</shadedPattern>
+                                    <shadedPattern>com.m3.tornado.graal.graphio</shadedPattern>
                                 </relocation>
                                 <relocation>
                                     <pattern>org.graalvm.util</pattern>
-                                    <shadedPattern>tornado.graal.util</shadedPattern>
+                                    <shadedPattern>com.m3.tornado.graal.util</shadedPattern>
                                 </relocation>
                             </relocations>
                             <filters>
@@ -100,6 +100,11 @@
                             </filters>
                             <transformers>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <manifestEntries>
+                                        <Automatic-Module-Name>jdk.m3.tornado.graal</Automatic-Module-Name>
+                                    </manifestEntries>
+                                </transformer>
                             </transformers>
                         </configuration>
                     </execution>

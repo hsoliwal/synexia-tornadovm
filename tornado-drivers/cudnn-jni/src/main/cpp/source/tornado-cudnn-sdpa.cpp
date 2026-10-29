@@ -83,7 +83,7 @@ typedef struct sdpa_plan_s {
  * V[b,h,s_kv,d] -> O[b,h,s_q,d], packed BHSD strides. Returns an opaque plan
  * pointer, or 0 on failure (the frontend error is printed to stderr).
  */
-JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cudnn_provider_CuDnnNativeLib_createSdpaPlan
+JNIEXPORT jlong JNICALL Java_com_m3_tornado_cudnn_provider_CuDnnNativeLib_createSdpaPlan
         (JNIEnv *env, jclass clazz, jlong handle, jint b, jint h, jint s_q, jint s_kv, jint d,
          jfloat scale, jboolean causal) {
 
@@ -138,7 +138,7 @@ JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cudnn_provider_CuDnnNative
  * Method:    sdpaPlanWorkspaceBytes
  * Signature: (J)J
  */
-JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cudnn_provider_CuDnnNativeLib_sdpaPlanWorkspaceBytes
+JNIEXPORT jlong JNICALL Java_com_m3_tornado_cudnn_provider_CuDnnNativeLib_sdpaPlanWorkspaceBytes
         (JNIEnv *env, jclass clazz, jlong plan_ptr) {
     return (jlong) ((sdpa_plan_t *) plan_ptr)->workspaceBytes;
 }
@@ -150,7 +150,7 @@ JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cudnn_provider_CuDnnNative
  *
  * Returns 0 on success, non-zero on failure (frontend error to stderr).
  */
-JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cudnn_provider_CuDnnNativeLib_executeSdpaPlan
+JNIEXPORT jint JNICALL Java_com_m3_tornado_cudnn_provider_CuDnnNativeLib_executeSdpaPlan
         (JNIEnv *env, jclass clazz, jlong handle, jlong plan_ptr, jlong d_q, jlong d_k, jlong d_v, jlong d_o, jlong workspace_ptr) {
     sdpa_plan_t *plan = (sdpa_plan_t *) plan_ptr;
     std::unordered_map<std::shared_ptr<fe::graph::Tensor_attributes>, void *> variant_pack = {
@@ -172,7 +172,7 @@ JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cudnn_provider_CuDnnNativeL
  * Method:    destroySdpaPlan
  * Signature: (J)V
  */
-JNIEXPORT void JNICALL Java_uk_ac_manchester_tornado_cudnn_provider_CuDnnNativeLib_destroySdpaPlan
+JNIEXPORT void JNICALL Java_com_m3_tornado_cudnn_provider_CuDnnNativeLib_destroySdpaPlan
         (JNIEnv *env, jclass clazz, jlong plan_ptr) {
     delete (sdpa_plan_t *) plan_ptr;
 }
@@ -189,7 +189,7 @@ JNIEXPORT void JNICALL Java_uk_ac_manchester_tornado_cudnn_provider_CuDnnNativeL
 
 extern "C" {
 
-JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cudnn_provider_CuDnnNativeLib_createSdpaPlan
+JNIEXPORT jlong JNICALL Java_com_m3_tornado_cudnn_provider_CuDnnNativeLib_createSdpaPlan
         (JNIEnv *env, jclass clazz, jlong handle, jint b, jint h, jint s_q, jint s_kv, jint d,
          jfloat scale, jboolean causal) {
     (void) env; (void) clazz; (void) handle;
@@ -200,20 +200,20 @@ JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cudnn_provider_CuDnnNative
     return 0;
 }
 
-JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cudnn_provider_CuDnnNativeLib_sdpaPlanWorkspaceBytes
+JNIEXPORT jlong JNICALL Java_com_m3_tornado_cudnn_provider_CuDnnNativeLib_sdpaPlanWorkspaceBytes
         (JNIEnv *env, jclass clazz, jlong plan_ptr) {
     (void) env; (void) clazz; (void) plan_ptr;
     return 0;
 }
 
-JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cudnn_provider_CuDnnNativeLib_executeSdpaPlan
+JNIEXPORT jint JNICALL Java_com_m3_tornado_cudnn_provider_CuDnnNativeLib_executeSdpaPlan
         (JNIEnv *env, jclass clazz, jlong handle, jlong plan_ptr, jlong d_q, jlong d_k, jlong d_v, jlong d_o, jlong workspace_ptr) {
     (void) env; (void) clazz; (void) handle; (void) plan_ptr;
     (void) d_q; (void) d_k; (void) d_v; (void) d_o; (void) workspace_ptr;
     return 1;
 }
 
-JNIEXPORT void JNICALL Java_uk_ac_manchester_tornado_cudnn_provider_CuDnnNativeLib_destroySdpaPlan
+JNIEXPORT void JNICALL Java_com_m3_tornado_cudnn_provider_CuDnnNativeLib_destroySdpaPlan
         (JNIEnv *env, jclass clazz, jlong plan_ptr) {
     (void) env; (void) clazz; (void) plan_ptr;
 }

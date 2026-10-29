@@ -3,8 +3,8 @@ name: M3 CPU GPU Bulk Provider
 on:
   pull_request:
     paths:
-      - 'm3/cpu-gpu/src/main/java/com/synexia/m3/cpugpu/Rv32iBulk*.java'
-      - 'm3/cpu-gpu/src/test/java/com/synexia/m3/cpugpu/Rv32iBulkExecutorTest.java'
+      - 'm3/cpu-gpu/src/main/java/com/m3/tornado/cpugpu/Rv32iBulk*.java'
+      - 'm3/cpu-gpu/src/test/java/com/m3/tornado/cpugpu/Rv32iBulkExecutorTest.java'
       - 'm3/cpu-gpu/recipe-bulk-provider/**'
       - 'm3/cpu-gpu/pom.xml'
       - 'm3/cpu-gpu/docs/BULK_PROVIDER.md'

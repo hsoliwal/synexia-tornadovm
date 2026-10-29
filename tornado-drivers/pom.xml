@@ -3,7 +3,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
     <parent>
-        <groupId>io.github.beehive-lab</groupId>
+        <groupId>com.m3.tornado</groupId>
         <artifactId>tornado</artifactId>
         <version>${revision}</version>
     </parent>
@@ -57,7 +57,7 @@
 
     <dependencies>
         <dependency>
-            <groupId>io.github.beehive-lab</groupId>
+            <groupId>com.m3.tornado</groupId>
             <artifactId>tornado-runtime</artifactId>
             <version>${tornado.version}</version>
         </dependency>

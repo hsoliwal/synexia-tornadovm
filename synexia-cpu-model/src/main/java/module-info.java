@@ -4,8 +4,8 @@
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  */
-module synexia.cpu.model {
-    requires transitive tornado.api;
+module jdk.m3.tornado.cpu {
+    requires transitive jdk.m3.tornado.api;
 
-    exports com.synexia.tornadovm.cpu;
+    exports com.m3.tornado.cpu;
 }

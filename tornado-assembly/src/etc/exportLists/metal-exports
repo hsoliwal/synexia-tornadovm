@@ -21,11 +21,11 @@
 # Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
 #
 
---add-opens java.base/java.lang=tornado.drivers.metal
---add-exports jdk.internal.vm.ci/jdk.vm.ci.common=tornado.drivers.metal
---add-exports jdk.internal.vm.ci/jdk.vm.ci.amd64=tornado.drivers.metal
---add-exports jdk.internal.vm.ci/jdk.vm.ci.meta=tornado.drivers.metal
---add-exports jdk.internal.vm.ci/jdk.vm.ci.code=tornado.drivers.metal
---add-exports jdk.internal.vm.ci/jdk.vm.ci.runtime=tornado.drivers.metal
---add-opens jdk.internal.vm.ci/jdk.vm.ci.hotspot=tornado.drivers.metal
---add-exports jdk.internal.vm.ci/jdk.vm.ci.hotspot=tornado.drivers.metal
+--add-opens java.base/java.lang=jdk.m3.tornado.drivers.metal
+--add-exports jdk.internal.vm.ci/jdk.vm.ci.common=jdk.m3.tornado.drivers.metal
+--add-exports jdk.internal.vm.ci/jdk.vm.ci.amd64=jdk.m3.tornado.drivers.metal
+--add-exports jdk.internal.vm.ci/jdk.vm.ci.meta=jdk.m3.tornado.drivers.metal
+--add-exports jdk.internal.vm.ci/jdk.vm.ci.code=jdk.m3.tornado.drivers.metal
+--add-exports jdk.internal.vm.ci/jdk.vm.ci.runtime=jdk.m3.tornado.drivers.metal
+--add-opens jdk.internal.vm.ci/jdk.vm.ci.hotspot=jdk.m3.tornado.drivers.metal
+--add-exports jdk.internal.vm.ci/jdk.vm.ci.hotspot=jdk.m3.tornado.drivers.metal

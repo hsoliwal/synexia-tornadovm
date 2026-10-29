@@ -6,7 +6,7 @@
 # this was the JDK module `jdk.internal.vm.compiler`, injected via `--upgrade-module-path`
 # because that name is a built-in JDK module that shadows anything on the regular
 # `--module-path`. To drop `--upgrade-module-path` we relocate the compiler off the
-# `jdk.*` namespace (`org.graalvm.compiler.*` -> `tornado.graal.compiler.*`) so it becomes
+# `jdk.*` namespace (`org.graalvm.compiler.*` -> `com.m3.tornado.graal.compiler.*`) so it becomes
 # a normal module resolvable from `--module-path`.
 #
 # Recipe (all steps proven in isolation before automating):
@@ -22,7 +22,7 @@
 #      which TornadoVM never uses (+EnableJVMCI without +UseJVMCICompiler).
 #   5. Compile + inject the module-info, drop the now-orphan services file.
 #   6. Emit graalJars/tornado-graal-<ver>.jar and install it to the local Maven repo as
-#      tornado.graal:tornado-graal:<ver> so the reactor can compile against it.
+#      com.m3.tornado.graal:tornado-graal:<ver> so the reactor can compile against it.
 #
 # Consumed by bin/pull_graal_jars.py after the raw Graal jars are fetched.
 
@@ -34,7 +34,7 @@ import sys
 import tempfile
 
 VERSION = "23.1.0"
-MODULE_NAME = "tornado.graal"
+MODULE_NAME = "jdk.m3.tornado.graal"
 ARTIFACT = f"tornado-graal-{VERSION}.jar"
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -159,7 +159,7 @@ def _relocated_uses_clauses(compiler_jar):
         line = line.strip()
         if line.startswith("uses "):
             svc = line[len("uses "):].strip()
-            svc = svc.replace("org.graalvm.compiler", "tornado.graal.compiler")
+            svc = svc.replace("org.graalvm.compiler", "com.m3.tornado.graal.compiler")
             clauses.append(f"    uses {svc};")
     return clauses
 
@@ -246,10 +246,10 @@ def build(jdk=None):
             os.remove(compiler_jar)  # relocated jar supersedes the raw compiler jar
         except FileNotFoundError:
             pass
-        _install_file(out, "tornado.graal", "tornado-graal")
+        _install_file(out, "com.m3.tornado.graal", "tornado-graal")
 
     print(f"build_graal_module: wrote {os.path.join('graalJars', ARTIFACT)} and installed "
-          f"tornado.graal:tornado-graal:{VERSION}")
+          f"com.m3.tornado.graal:tornado-graal:{VERSION}")
 
 
 if __name__ == "__main__":

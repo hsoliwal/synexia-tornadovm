@@ -7,6 +7,6 @@ if not errorlevel 1 (
 	echo:
 	echo Testing the native OpenCL API
 	echo:
-	%TORNADOVM_HOME%\bin\tornado.exe uk.ac.manchester.tornado.drivers.opencl.tests.TestOpenCLJITCompiler
-	%TORNADOVM_HOME%\bin\tornado.exe uk.ac.manchester.tornado.drivers.opencl.tests.TestOpenCLTornadoCompiler
+	%TORNADOVM_HOME%\bin\tornado.exe com.m3.tornado.drivers.opencl.tests.TestOpenCLJITCompiler
+	%TORNADOVM_HOME%\bin\tornado.exe com.m3.tornado.drivers.opencl.tests.TestOpenCLTornadoCompiler
 )

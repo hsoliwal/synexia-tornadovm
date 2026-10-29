@@ -1,0 +1,481 @@
+/*
+ * This file is part of Tornado: A heterogeneous programming framework:
+ * https://github.com/beehive-lab/tornadovm
+ *
+ * Copyright (c) 2020-2022, APT Group, Department of Computer Science,
+ * School of Engineering, The University of Manchester. All rights reserved.
+ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+ *
+ * This code is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 only, as
+ * published by the Free Software Foundation.
+ *
+ * This code is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+ * version 2 for more details (a copy is included in the LICENSE file that
+ * accompanied this code).
+ *
+ * You should have received a copy of the GNU General Public License version
+ * 2 along with this work; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ */
+package com.m3.tornado.drivers.cuda.virtual;
+
+import static com.m3.tornado.api.exceptions.TornadoInternalError.unimplemented;
+
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
+import jdk.vm.ci.meta.ResolvedJavaMethod;
+import com.m3.tornado.api.common.Access;
+import com.m3.tornado.api.common.Event;
+import com.m3.tornado.api.common.SchedulableTask;
+import com.m3.tornado.api.enums.TornadoDeviceType;
+import com.m3.tornado.api.enums.TornadoVMBackendType;
+import com.m3.tornado.api.exceptions.TornadoBailoutRuntimeException;
+import com.m3.tornado.api.exceptions.TornadoInternalError;
+import com.m3.tornado.api.memory.DeviceBufferState;
+import com.m3.tornado.api.memory.TornadoMemoryProvider;
+import com.m3.tornado.api.memory.XPUBuffer;
+import com.m3.tornado.api.profiler.ProfilerType;
+import com.m3.tornado.api.profiler.TornadoProfiler;
+import com.m3.tornado.drivers.cuda.CUDABackendImpl;
+import com.m3.tornado.drivers.cuda.CUDADeviceContextInterface;
+import com.m3.tornado.drivers.cuda.CUDATargetDevice;
+import com.m3.tornado.drivers.cuda.enums.CUDADeviceType;
+import com.m3.tornado.drivers.cuda.graal.CUDAProviders;
+import com.m3.tornado.drivers.cuda.graal.backend.CUDABackend;
+import com.m3.tornado.drivers.cuda.graal.compiler.CUDACompilationResult;
+import com.m3.tornado.drivers.cuda.graal.compiler.CUDACompiler;
+import com.m3.tornado.runtime.TornadoCoreRuntime;
+import com.m3.tornado.runtime.common.KernelStackFrame;
+import com.m3.tornado.runtime.common.RuntimeUtilities;
+import com.m3.tornado.runtime.common.TornadoInstalledCode;
+import com.m3.tornado.runtime.common.TornadoLogger;
+import com.m3.tornado.runtime.common.TornadoOptions;
+import com.m3.tornado.runtime.common.TornadoSchedulingStrategy;
+import com.m3.tornado.runtime.common.TornadoXPUDevice;
+import com.m3.tornado.runtime.common.XPUDeviceBufferState;
+import com.m3.tornado.runtime.sketcher.Sketch;
+import com.m3.tornado.runtime.sketcher.TornadoSketcher;
+import com.m3.tornado.runtime.tasks.CompilableTask;
+import com.m3.tornado.runtime.tasks.PrebuiltTask;
+import com.m3.tornado.runtime.tasks.meta.TaskDataContext;
+
+public class VirtualCUDATornadoDevice implements TornadoXPUDevice {
+
+    private static CUDABackendImpl driver = null;
+    private final CUDATargetDevice device;
+    private final int deviceIndex;
+    private final int platformIndex;
+    private final String platformName;
+
+    public VirtualCUDATornadoDevice(final int platformIndex, final int deviceIndex) {
+        this.platformIndex = platformIndex;
+        this.deviceIndex = deviceIndex;
+
+        platformName = findDriver().getPlatformContext(platformIndex).getPlatform().getName();
+        device = findDriver().getPlatformContext(platformIndex).devices().get(deviceIndex);
+    }
+
+    private static CUDABackendImpl findDriver() {
+        if (driver == null) {
+            driver = TornadoCoreRuntime.getTornadoRuntime().getBackend(CUDABackendImpl.class);
+            TornadoInternalError.guarantee(driver != null, "unable to find CUDADriver driver");
+        }
+        return driver;
+    }
+
+    @Override
+    public void dumpEvents(long executionPlanId) {
+    }
+
+    @Override
+    public String getDescription() {
+        final String availability = (device.isDeviceAvailable()) ? "available" : "not available";
+        return String.format("%s %s (%s)", device.getDeviceName(), device.getDeviceType(), availability);
+    }
+
+    @Override
+    public String getPlatformName() {
+        return platformName;
+    }
+
+    @Override
+    public CUDATargetDevice getPhysicalDevice() {
+        return device;
+    }
+
+    @Override
+    public TornadoMemoryProvider getMemoryProvider() {
+        unimplemented();
+        return getDeviceContext().getMemoryManager();
+    }
+
+    @Override
+    public CUDADeviceContextInterface getDeviceContext() {
+        return getBackend().getDeviceContext();
+    }
+
+    public CUDABackend getBackend() {
+        return findDriver().getBackend(platformIndex, deviceIndex);
+    }
+
+    @Override
+    public void clean() {
+        Set<Long> ids = new HashSet<>(device.getDeviceContext().getRegisteredPlanIds());
+        if (!ids.isEmpty()) {
+            ids.forEach(id -> device.getDeviceContext().reset(id));
+            ids.clear();
+        }
+    }
+
+    @Override
+    public String toString() {
+        return getPlatformName() + " -- " + device.getDeviceName();
+    }
+
+    @Override
+    public TornadoSchedulingStrategy getPreferredSchedule() {
+        switch (Objects.requireNonNull(device.getDeviceType())) {
+            case CL_DEVICE_TYPE_GPU, //
+                    CL_DEVICE_TYPE_ACCELERATOR,//
+                    CL_DEVICE_TYPE_CUSTOM,//
+                    CL_DEVICE_TYPE_ALL -> {//
+                return TornadoSchedulingStrategy.PER_ACCELERATOR_ITERATION;
+            }
+            case CL_DEVICE_TYPE_CPU -> {
+                if (TornadoOptions.USE_BLOCK_SCHEDULER) {
+                    return TornadoSchedulingStrategy.PER_CPU_BLOCK;
+                } else {
+                    return TornadoSchedulingStrategy.PER_ACCELERATOR_ITERATION;
+                }
+            }
+            default -> {
+                TornadoInternalError.shouldNotReachHere();
+                return TornadoSchedulingStrategy.PER_ACCELERATOR_ITERATION;
+            }
+        }
+    }
+
+    @Override
+    public void ensureLoaded(long executionPlanId) {
+        final CUDABackend backend = getBackend();
+        if (!backend.isInitialised()) {
+            backend.init();
+        }
+    }
+
+    @Override
+    public KernelStackFrame createKernelStackFrame(long executionPlanId, int numArgs, Access access) {
+        return null;
+    }
+
+    @Override
+    public XPUBuffer createOrReuseAtomicsBuffer(int[] arr, Access access) {
+        return null;
+    }
+
+    private TornadoInstalledCode compileTask(SchedulableTask task) {
+        final CompilableTask executable = (CompilableTask) task;
+        final ResolvedJavaMethod resolvedMethod = TornadoCoreRuntime.getTornadoRuntime().resolveMethod(executable.getMethod());
+        final Sketch sketch = TornadoSketcher.lookup(resolvedMethod, task.meta().getBackendIndex(), task.meta().getDeviceIndex());
+
+        // copy meta data into task
+        final TaskDataContext taskMeta = executable.meta();
+        final Access[] sketchAccess = sketch.getArgumentsAccess();
+        final Access[] taskAccess = taskMeta.getArgumentsAccess();
+        System.arraycopy(sketchAccess, 0, taskAccess, 0, sketchAccess.length);
+
+        try {
+            CUDAProviders providers = (CUDAProviders) getBackend().getProviders();
+            TornadoProfiler profiler = task.getProfiler();
+            profiler.start(ProfilerType.TASK_COMPILE_GRAAL_TIME, taskMeta.getId());
+            final CUDACompilationResult result = CUDACompiler.compileSketchForDevice(sketch, executable, providers, getBackend(), executable.getProfiler());
+            profiler.stop(ProfilerType.TASK_COMPILE_GRAAL_TIME, taskMeta.getId());
+            profiler.sum(ProfilerType.TOTAL_GRAAL_COMPILE_TIME, profiler.getTaskTimer(ProfilerType.TASK_COMPILE_GRAAL_TIME, taskMeta.getId()));
+
+            if (taskMeta.isPrintKernelEnabled()) {
+                RuntimeUtilities.dumpKernel(result.getTargetCode());
+            }
+
+            return null;
+        } catch (Exception e) {
+            TornadoLogger tornadoLogger = new TornadoLogger();
+            tornadoLogger.fatal("unable to compile %s for device %s", task.getId(), getDeviceName());
+            tornadoLogger.fatal("exception occurred when compiling %s", ((CompilableTask) task).getMethod().getName());
+            tornadoLogger.fatal("exception: %s", e.toString());
+            throw new TornadoBailoutRuntimeException("[Error During the Task Compilation] ", e);
+        }
+    }
+
+    private TornadoInstalledCode compilePreBuiltTask(SchedulableTask task) {
+        final PrebuiltTask executable = (PrebuiltTask) task;
+        final Path path = Paths.get(executable.getFilename());
+        TornadoInternalError.guarantee(path.toFile().exists(), "file does not exist: %s", executable.getFilename());
+        try {
+            final byte[] source = Files.readAllBytes(path);
+            if (task.meta().isPrintKernelEnabled()) {
+                RuntimeUtilities.dumpKernel(source);
+            }
+        } catch (IOException e) {
+            throw new TornadoBailoutRuntimeException(e.getMessage());
+        }
+        return null;
+    }
+
+    private TornadoInstalledCode compileJavaToAccelerator(SchedulableTask task) {
+        if (task instanceof CompilableTask) {
+            return compileTask(task);
+        } else if (task instanceof PrebuiltTask) {
+            return compilePreBuiltTask(task);
+        }
+        TornadoInternalError.shouldNotReachHere("task of unknown type: " + task.getClass().getSimpleName());
+        return null;
+    }
+
+    @Override
+    public boolean isFullJITMode(long executionPlanId, SchedulableTask task) {
+        return true;
+    }
+
+    @Override
+    public TornadoInstalledCode getCodeFromCache(long executionPlanId, SchedulableTask task) {
+        return null;
+    }
+
+    @Override
+    public int[] checkAtomicsForTask(SchedulableTask task) {
+        return null;
+    }
+
+    @Override
+    public int[] checkAtomicsForTask(SchedulableTask task, int[] array, int paramIndex, Object value) {
+        return null;
+    }
+
+    @Override
+    public int[] updateAtomicRegionAndObjectState(SchedulableTask task, int[] array, int paramIndex, Object value, XPUDeviceBufferState objectState) {
+        return null;
+    }
+
+    @Override
+    public int getAtomicsGlobalIndexForTask(SchedulableTask task, int paramIndex) {
+        return -1;
+    }
+
+    @Override
+    public boolean checkAtomicsParametersForTask(SchedulableTask task) {
+        return false;
+    }
+
+    @Override
+    public TornadoInstalledCode installCode(long executionPlanId, SchedulableTask task) {
+        return compileJavaToAccelerator(task);
+    }
+
+    @Override
+    public long allocate(Object object, long batchSize, DeviceBufferState state, Access access) {
+        unimplemented();
+        return -1;
+    }
+
+    @Override
+    public synchronized long allocateObjects(Object[] objects, long batchSize, DeviceBufferState[] states, Access[] accesses) {
+        unimplemented();
+        return -1;
+    }
+
+    @Override
+    public synchronized long deallocate(DeviceBufferState state) {
+        unimplemented();
+        return -1;
+    }
+
+    @Override
+    public List<Integer> ensurePresent(long executionPlanId, Object object, DeviceBufferState state, int[] events, long batchSize, long offset) {
+        unimplemented();
+        return null;
+    }
+
+    @Override
+    public List<Integer> streamIn(long executionPlanId, Object object, long batchSize, long offset, DeviceBufferState state, int[] events) {
+        unimplemented();
+        return null;
+    }
+
+    @Override
+    public int streamOut(long executionPlanId, Object object, long offset, DeviceBufferState state, int[] events) {
+        unimplemented();
+        return -1;
+    }
+
+    @Override
+    public int streamOutBlocking(long executionPlanId, Object object, long hostOffset, DeviceBufferState state, int[] events) {
+        unimplemented();
+        return -1;
+    }
+
+    @Override
+    public void flush(long executionPlanId) {
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof VirtualCUDATornadoDevice) {
+            final VirtualCUDATornadoDevice other = (VirtualCUDATornadoDevice) obj;
+            return (other.deviceIndex == deviceIndex && other.platformIndex == platformIndex);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 7;
+        hash = 89 * hash + this.deviceIndex;
+        hash = 89 * hash + this.platformIndex;
+        return hash;
+    }
+
+    @Override
+    public void sync(long executionPlanId) {
+    }
+
+    @Override
+    public int enqueueBarrier(long executionPlanId) {
+        unimplemented();
+        return getDeviceContext().enqueueBarrier(executionPlanId);
+    }
+
+    @Override
+    public int enqueueBarrier(long executionPlanId, int[] events) {
+        unimplemented();
+        return getDeviceContext().enqueueBarrier(executionPlanId, events);
+    }
+
+    @Override
+    public int enqueueMarker(long executionPlanId) {
+        return getDeviceContext().enqueueMarker(executionPlanId);
+    }
+
+    @Override
+    public int enqueueMarker(long executionPlanId, int[] events) {
+        return getDeviceContext().enqueueMarker(executionPlanId, events);
+    }
+
+    @Override
+    public Event resolveEvent(long executionPlanId, int event) {
+        return getDeviceContext().resolveEvent(executionPlanId, event);
+    }
+
+    @Override
+    public void flushEvents(long executionPlanId) {
+        getDeviceContext().flushEvents(executionPlanId);
+    }
+
+    @Override
+    public String getDeviceName() {
+        return String.format("virtualOpencl-%d-%d", platformIndex, deviceIndex);
+    }
+
+    @Override
+    public TornadoDeviceType getDeviceType() {
+        CUDADeviceType deviceType = device.getDeviceType();
+        switch (deviceType) {
+            case CL_DEVICE_TYPE_CPU:
+                return TornadoDeviceType.CPU;
+            case CL_DEVICE_TYPE_GPU:
+                return TornadoDeviceType.GPU;
+            case CL_DEVICE_TYPE_ACCELERATOR:
+                return TornadoDeviceType.ACCELERATOR;
+            case CL_DEVICE_TYPE_CUSTOM:
+                return TornadoDeviceType.CUSTOM;
+            case CL_DEVICE_TYPE_ALL:
+                return TornadoDeviceType.ALL;
+            case CL_DEVICE_TYPE_DEFAULT:
+                return TornadoDeviceType.DEFAULT;
+            default:
+                throw new RuntimeException("Device not supported");
+        }
+    }
+
+    @Override
+    public long getMaxAllocMemory() {
+        return device.getDeviceMaxAllocationSize();
+    }
+
+    @Override
+    public long getMaxGlobalMemory() {
+        return device.getDeviceGlobalMemorySize();
+    }
+
+    @Override
+    public long getDeviceLocalMemorySize() {
+        return device.getDeviceLocalMemorySize();
+    }
+
+    @Override
+    public long[] getDeviceMaxWorkgroupDimensions() {
+        return device.getDeviceMaxWorkItemSizes();
+    }
+
+    @Override
+    public String getDeviceOpenCLCVersion() {
+        return device.getDeviceOpenCLCVersion();
+    }
+
+    @Override
+    public Object getDeviceInfo() {
+        return device.getDeviceInfo();
+    }
+
+    @Override
+    public int getBackendIndex() {
+        return TornadoCoreRuntime.getTornadoRuntime().getBackendIndex(CUDABackendImpl.class);
+    }
+
+    @Override
+    public void enableThreadSharing() {
+        // CUDADriver device context is shared by different threads, by default
+    }
+
+    @Override
+    public void setAtomicRegion(XPUBuffer bufferAtomics) {
+
+    }
+
+    @Override
+    public int getAvailableProcessors() {
+        return ((VirtualCUDADevice) device).getAvailableProcessors();
+    }
+
+    @Override
+    public Object getAtomic() {
+        return null;
+    }
+
+    @Override
+    public void setAtomicsMapping(ConcurrentHashMap<Object, Integer> mappingAtomics) {
+
+    }
+
+    @Override
+    public TornadoVMBackendType getTornadoVMBackend() {
+        return TornadoVMBackendType.VIRTUAL;
+    }
+
+    @Override
+    public void mapDeviceRegion(long executionPlanId, Object destArray, Object srcArray, DeviceBufferState deviceStateSrc, DeviceBufferState deviceStateDest, long offset) {
+        throw new UnsupportedOperationException();
+    }
+
+}

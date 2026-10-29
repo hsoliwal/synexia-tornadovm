@@ -1,8 +1,8 @@
---add-opens java.base/java.lang=tornado.drivers.cuda
---add-exports jdk.internal.vm.ci/jdk.vm.ci.common=tornado.drivers.cuda
---add-exports jdk.internal.vm.ci/jdk.vm.ci.amd64=tornado.drivers.cuda
---add-exports jdk.internal.vm.ci/jdk.vm.ci.meta=tornado.drivers.cuda
---add-exports jdk.internal.vm.ci/jdk.vm.ci.code=tornado.drivers.cuda
---add-exports jdk.internal.vm.ci/jdk.vm.ci.runtime=tornado.drivers.cuda
---add-opens jdk.internal.vm.ci/jdk.vm.ci.hotspot=tornado.drivers.cuda
---add-exports jdk.internal.vm.ci/jdk.vm.ci.hotspot=tornado.drivers.cuda
+--add-opens java.base/java.lang=jdk.m3.tornado.drivers.cuda
+--add-exports jdk.internal.vm.ci/jdk.vm.ci.common=jdk.m3.tornado.drivers.cuda
+--add-exports jdk.internal.vm.ci/jdk.vm.ci.amd64=jdk.m3.tornado.drivers.cuda
+--add-exports jdk.internal.vm.ci/jdk.vm.ci.meta=jdk.m3.tornado.drivers.cuda
+--add-exports jdk.internal.vm.ci/jdk.vm.ci.code=jdk.m3.tornado.drivers.cuda
+--add-exports jdk.internal.vm.ci/jdk.vm.ci.runtime=jdk.m3.tornado.drivers.cuda
+--add-opens jdk.internal.vm.ci/jdk.vm.ci.hotspot=jdk.m3.tornado.drivers.cuda
+--add-exports jdk.internal.vm.ci/jdk.vm.ci.hotspot=jdk.m3.tornado.drivers.cuda

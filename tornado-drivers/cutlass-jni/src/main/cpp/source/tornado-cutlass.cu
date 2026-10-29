@@ -21,7 +21,7 @@
  */
 
 /*
- * JNI bindings for uk.ac.manchester.tornado.cutlass.provider.CutlassNativeLib.
+ * JNI bindings for com.m3.tornado.cutlass.provider.CutlassNativeLib.
  *
  * CUTLASS device-API GEMM kernels, instantiated ahead of time for the shapes
  * the hybrid API exposes. All operands are ROW-MAJOR (A: m x k, B: k x n,
@@ -155,7 +155,7 @@ using SgemmSimt = cutlass::gemm::device::GemmUniversal<
  * Method:    sgemmWorkspace
  * Signature: (III)J
  */
-JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNativeLib_sgemmWorkspace
+JNIEXPORT jlong JNICALL Java_com_m3_tornado_cutlass_provider_CutlassNativeLib_sgemmWorkspace
         (JNIEnv *env, jclass clazz, jint m, jint n, jint k) {
     SgemmSimt::Arguments args(
             cutlass::gemm::GemmUniversalMode::kGemm,
@@ -173,7 +173,7 @@ JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNa
  * Method:    sgemm
  * Signature: (IIIFJJFJJJ)I
  */
-JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNativeLib_sgemm
+JNIEXPORT jint JNICALL Java_com_m3_tornado_cutlass_provider_CutlassNativeLib_sgemm
         (JNIEnv *env, jclass clazz, jint m, jint n, jint k, jfloat alpha,
          jlong dA, jlong dB, jfloat beta, jlong dC, jlong workspace, jlong stream) {
     SgemmSimt::Arguments args(
@@ -207,7 +207,7 @@ JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNat
  * Method:    hgemmWorkspace
  * Signature: (III)J
  */
-JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNativeLib_hgemmWorkspace
+JNIEXPORT jlong JNICALL Java_com_m3_tornado_cutlass_provider_CutlassNativeLib_hgemmWorkspace
         (JNIEnv *env, jclass clazz, jint m, jint n, jint k) {
     HgemmTensor::Arguments args(
             cutlass::gemm::GemmUniversalMode::kGemm, {m, n, k}, 1, {1.0f, 0.0f},
@@ -220,7 +220,7 @@ JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNa
  * Method:    hgemm
  * Signature: (IIIFJJFJJJ)I
  */
-JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNativeLib_hgemm
+JNIEXPORT jint JNICALL Java_com_m3_tornado_cutlass_provider_CutlassNativeLib_hgemm
         (JNIEnv *env, jclass clazz, jint m, jint n, jint k, jfloat alpha,
          jlong dA, jlong dB, jfloat beta, jlong dC, jlong workspace, jlong stream) {
     HgemmTensor::Arguments args(
@@ -235,7 +235,7 @@ JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNat
  * Method:    bgemmWorkspace
  * Signature: (III)J
  */
-JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNativeLib_bgemmWorkspace
+JNIEXPORT jlong JNICALL Java_com_m3_tornado_cutlass_provider_CutlassNativeLib_bgemmWorkspace
         (JNIEnv *env, jclass clazz, jint m, jint n, jint k) {
     BF16TensorOpGemm::Arguments args(
             cutlass::gemm::GemmUniversalMode::kGemm, {m, n, k}, 1, {1.0f, 0.0f},
@@ -248,7 +248,7 @@ JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNa
  * Method:    bgemm
  * Signature: (IIIFJJFJJJ)I
  */
-JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNativeLib_bgemm
+JNIEXPORT jint JNICALL Java_com_m3_tornado_cutlass_provider_CutlassNativeLib_bgemm
         (JNIEnv *env, jclass clazz, jint m, jint n, jint k, jfloat alpha,
          jlong dA, jlong dB, jfloat beta, jlong dC, jlong workspace, jlong stream) {
     BF16TensorOpGemm::Arguments args(
@@ -263,7 +263,7 @@ JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNat
  * Method:    gemmBiasReluWorkspace
  * Signature: (III)J
  */
-JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNativeLib_gemmBiasReluWorkspace
+JNIEXPORT jlong JNICALL Java_com_m3_tornado_cutlass_provider_CutlassNativeLib_gemmBiasReluWorkspace
         (JNIEnv *env, jclass clazz, jint m, jint n, jint k) {
     GemmBiasRelu::Arguments args(
             cutlass::gemm::GemmUniversalMode::kGemm, {m, n, k}, 1, {1.0f, 1.0f},
@@ -276,7 +276,7 @@ JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNa
  * Method:    gemmBiasRelu
  * Signature: (IIIJJJJJJ)I
  */
-JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNativeLib_gemmBiasRelu
+JNIEXPORT jint JNICALL Java_com_m3_tornado_cutlass_provider_CutlassNativeLib_gemmBiasRelu
         (JNIEnv *env, jclass clazz, jint m, jint n, jint k, jlong dA, jlong dB, jlong dBias, jlong dD, jlong workspace, jlong stream) {
     return gemmBiasAct<GemmBiasRelu>(m, n, k, dA, dB, dBias, dD, workspace, stream);
 }
@@ -286,7 +286,7 @@ JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNat
  * Method:    gemmBiasGeluWorkspace
  * Signature: (III)J
  */
-JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNativeLib_gemmBiasGeluWorkspace
+JNIEXPORT jlong JNICALL Java_com_m3_tornado_cutlass_provider_CutlassNativeLib_gemmBiasGeluWorkspace
         (JNIEnv *env, jclass clazz, jint m, jint n, jint k) {
     GemmBiasGelu::Arguments args(
             cutlass::gemm::GemmUniversalMode::kGemm, {m, n, k}, 1, {1.0f, 1.0f},
@@ -299,7 +299,7 @@ JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNa
  * Method:    gemmBiasGelu
  * Signature: (IIIJJJJJJ)I
  */
-JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNativeLib_gemmBiasGelu
+JNIEXPORT jint JNICALL Java_com_m3_tornado_cutlass_provider_CutlassNativeLib_gemmBiasGelu
         (JNIEnv *env, jclass clazz, jint m, jint n, jint k, jlong dA, jlong dB, jlong dBias, jlong dD, jlong workspace, jlong stream) {
     return gemmBiasAct<GemmBiasGelu>(m, n, k, dA, dB, dBias, dD, workspace, stream);
 }
@@ -309,7 +309,7 @@ JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNat
  * Method:    gemmBiasSiluWorkspace
  * Signature: (III)J
  */
-JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNativeLib_gemmBiasSiluWorkspace
+JNIEXPORT jlong JNICALL Java_com_m3_tornado_cutlass_provider_CutlassNativeLib_gemmBiasSiluWorkspace
         (JNIEnv *env, jclass clazz, jint m, jint n, jint k) {
     GemmBiasSilu::Arguments args(
             cutlass::gemm::GemmUniversalMode::kGemm, {m, n, k}, 1, {1.0f, 1.0f},
@@ -322,7 +322,7 @@ JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNa
  * Method:    gemmBiasSilu
  * Signature: (IIIJJJJJJ)I
  */
-JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNativeLib_gemmBiasSilu
+JNIEXPORT jint JNICALL Java_com_m3_tornado_cutlass_provider_CutlassNativeLib_gemmBiasSilu
         (JNIEnv *env, jclass clazz, jint m, jint n, jint k, jlong dA, jlong dB, jlong dBias, jlong dD, jlong workspace, jlong stream) {
     return gemmBiasAct<GemmBiasSilu>(m, n, k, dA, dB, dBias, dD, workspace, stream);
 }
@@ -332,7 +332,7 @@ JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNat
  * Method:    gemmBiasSigmoidWorkspace
  * Signature: (III)J
  */
-JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNativeLib_gemmBiasSigmoidWorkspace
+JNIEXPORT jlong JNICALL Java_com_m3_tornado_cutlass_provider_CutlassNativeLib_gemmBiasSigmoidWorkspace
         (JNIEnv *env, jclass clazz, jint m, jint n, jint k) {
     GemmBiasSigmoid::Arguments args(
             cutlass::gemm::GemmUniversalMode::kGemm, {m, n, k}, 1, {1.0f, 1.0f},
@@ -345,7 +345,7 @@ JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNa
  * Method:    gemmBiasSigmoid
  * Signature: (IIIJJJJJJ)I
  */
-JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNativeLib_gemmBiasSigmoid
+JNIEXPORT jint JNICALL Java_com_m3_tornado_cutlass_provider_CutlassNativeLib_gemmBiasSigmoid
         (JNIEnv *env, jclass clazz, jint m, jint n, jint k, jlong dA, jlong dB, jlong dBias, jlong dD, jlong workspace, jlong stream) {
     return gemmBiasAct<GemmBiasSigmoid>(m, n, k, dA, dB, dBias, dD, workspace, stream);
 }
@@ -355,7 +355,7 @@ JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNat
  * Method:    gemmBiasTanhWorkspace
  * Signature: (III)J
  */
-JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNativeLib_gemmBiasTanhWorkspace
+JNIEXPORT jlong JNICALL Java_com_m3_tornado_cutlass_provider_CutlassNativeLib_gemmBiasTanhWorkspace
         (JNIEnv *env, jclass clazz, jint m, jint n, jint k) {
     GemmBiasTanh::Arguments args(
             cutlass::gemm::GemmUniversalMode::kGemm, {m, n, k}, 1, {1.0f, 1.0f},
@@ -368,7 +368,7 @@ JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNa
  * Method:    gemmBiasTanh
  * Signature: (IIIJJJJJJ)I
  */
-JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNativeLib_gemmBiasTanh
+JNIEXPORT jint JNICALL Java_com_m3_tornado_cutlass_provider_CutlassNativeLib_gemmBiasTanh
         (JNIEnv *env, jclass clazz, jint m, jint n, jint k, jlong dA, jlong dB, jlong dBias, jlong dD, jlong workspace, jlong stream) {
     return gemmBiasAct<GemmBiasTanh>(m, n, k, dA, dB, dBias, dD, workspace, stream);
 }
@@ -378,7 +378,7 @@ JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNat
  * Method:    gemmBiasHardSwishWorkspace
  * Signature: (III)J
  */
-JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNativeLib_gemmBiasHardSwishWorkspace
+JNIEXPORT jlong JNICALL Java_com_m3_tornado_cutlass_provider_CutlassNativeLib_gemmBiasHardSwishWorkspace
         (JNIEnv *env, jclass clazz, jint m, jint n, jint k) {
     GemmBiasHardSwish::Arguments args(
             cutlass::gemm::GemmUniversalMode::kGemm, {m, n, k}, 1, {1.0f, 1.0f},
@@ -391,7 +391,7 @@ JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNa
  * Method:    gemmBiasHardSwish
  * Signature: (IIIJJJJJJ)I
  */
-JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNativeLib_gemmBiasHardSwish
+JNIEXPORT jint JNICALL Java_com_m3_tornado_cutlass_provider_CutlassNativeLib_gemmBiasHardSwish
         (JNIEnv *env, jclass clazz, jint m, jint n, jint k, jlong dA, jlong dB, jlong dBias, jlong dD, jlong workspace, jlong stream) {
     return gemmBiasAct<GemmBiasHardSwish>(m, n, k, dA, dB, dBias, dD, workspace, stream);
 }
@@ -408,7 +408,7 @@ JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNat
  * Method:    hgemmBatchedWorkspace
  * Signature: (IIII)J
  */
-JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNativeLib_hgemmBatchedWorkspace
+JNIEXPORT jlong JNICALL Java_com_m3_tornado_cutlass_provider_CutlassNativeLib_hgemmBatchedWorkspace
         (JNIEnv *env, jclass clazz, jint m, jint n, jint k, jint batchCount) {
     HgemmTensor::Arguments args(
             cutlass::gemm::GemmUniversalMode::kBatched, {m, n, k}, batchCount, {1.0f, 0.0f},
@@ -422,7 +422,7 @@ JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNa
  * Method:    hgemmBatched
  * Signature: (IIIFJJFJIJJ)I
  */
-JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNativeLib_hgemmBatched
+JNIEXPORT jint JNICALL Java_com_m3_tornado_cutlass_provider_CutlassNativeLib_hgemmBatched
         (JNIEnv *env, jclass clazz, jint m, jint n, jint k, jfloat alpha,
          jlong dA, jlong dB, jfloat beta, jlong dC, jint batchCount, jlong workspace, jlong stream) {
     HgemmTensor::Arguments args(
@@ -441,7 +441,7 @@ JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNat
  * Method:    allocateDeviceMemory
  * Signature: (J)J
  */
-JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNativeLib_allocateDeviceMemory
+JNIEXPORT jlong JNICALL Java_com_m3_tornado_cutlass_provider_CutlassNativeLib_allocateDeviceMemory
         (JNIEnv *env, jclass clazz, jlong bytes) {
     if (bytes <= 0) {
         return 0;
@@ -458,7 +458,7 @@ JNIEXPORT jlong JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNa
  * Method:    freeDeviceMemory
  * Signature: (J)I
  */
-JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNativeLib_freeDeviceMemory
+JNIEXPORT jint JNICALL Java_com_m3_tornado_cutlass_provider_CutlassNativeLib_freeDeviceMemory
         (JNIEnv *env, jclass clazz, jlong ptr) {
     if (ptr == 0) {
         return (jint) cudaSuccess;
@@ -471,7 +471,7 @@ JNIEXPORT jint JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNat
  * Method:    statusString
  * Signature: (I)Ljava/lang/String;
  */
-JNIEXPORT jstring JNICALL Java_uk_ac_manchester_tornado_cutlass_provider_CutlassNativeLib_statusString
+JNIEXPORT jstring JNICALL Java_com_m3_tornado_cutlass_provider_CutlassNativeLib_statusString
         (JNIEnv *env, jclass clazz, jint status) {
     const char *s = cutlassGetStatusString((cutlass::Status) status);
     return env->NewStringUTF(s);

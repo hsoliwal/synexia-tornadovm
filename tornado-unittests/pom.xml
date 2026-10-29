@@ -5,13 +5,13 @@
     <modelVersion>4.0.0</modelVersion>
     <properties>
         <tornado.sdk>${env.TORNADOVM_HOME}</tornado.sdk>
-        <test.class>uk.ac.manchester.tornado.unittests.foundation.FoundationTestSuite</test.class>
+        <test.class>com.m3.tornado.unittests.foundation.FoundationTestSuite</test.class>
         <maven.test.skip>true</maven.test.skip>
         <checkstyle.skip>true</checkstyle.skip>
     </properties>
 
     <parent>
-        <groupId>io.github.beehive-lab</groupId>
+        <groupId>com.m3.tornado</groupId>
         <artifactId>tornado</artifactId>
         <version>${revision}</version>
     </parent>
@@ -98,16 +98,16 @@
                         <argument>--enable-preview</argument>
                         <argument>-Djava.library.path=${env.TORNADOVM_HOME}/lib</argument>
                         <argument>--module-path=.:${env.TORNADOVM_HOME}/share/java/tornado:${env.TORNADOVM_HOME}/share/java/graalJars</argument>
-                        <argument>-Dtornado.load.api.implementation=uk.ac.manchester.tornado.runtime.tasks.TornadoTaskGraph</argument>
-                        <argument>-Dtornado.load.runtime.implementation=uk.ac.manchester.tornado.runtime.TornadoCoreRuntime</argument>
-                        <argument>-Dtornado.load.tornado.implementation=uk.ac.manchester.tornado.runtime.common.Tornado</argument>
-                        <argument>-Dtornado.load.annotation.implementation=uk.ac.manchester.tornado.annotation.ASMClassVisitor</argument>
-                        <argument>-Dtornado.load.annotation.parallel=uk.ac.manchester.tornado.api.annotations.Parallel</argument>
+                        <argument>-Dtornado.load.api.implementation=com.m3.tornado.runtime.tasks.TornadoTaskGraph</argument>
+                        <argument>-Dtornado.load.runtime.implementation=com.m3.tornado.runtime.TornadoCoreRuntime</argument>
+                        <argument>-Dtornado.load.tornado.implementation=com.m3.tornado.runtime.common.Tornado</argument>
+                        <argument>-Dtornado.load.annotation.implementation=com.m3.tornado.annotation.ASMClassVisitor</argument>
+                        <argument>-Dtornado.load.annotation.parallel=com.m3.tornado.api.annotations.Parallel</argument>
                         <argument>-XX:+UseParallelGC</argument>
                         <argument>@${tornado.sdk}/etc/exportLists/common-exports</argument>
                         <argument>@${tornado.sdk}/etc/exportLists/opencl-exports</argument>
                         <argument>--add-modules</argument>
-                        <argument>ALL-SYSTEM,tornado.graal,tornado.runtime,tornado.annotation,tornado.drivers.common,tornado.drivers.opencl</argument>
+                        <argument>ALL-SYSTEM,jdk.m3.tornado.graal,jdk.m3.tornado.runtime,jdk.m3.tornado.annotation,jdk.m3.tornado.drivers.common,jdk.m3.tornado.drivers.opencl</argument>
                         <argument>-cp</argument>
                         <argument>${project.build.outputDirectory}</argument>
                         <argument>-Xmx6g</argument>

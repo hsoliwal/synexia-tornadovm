@@ -1,0 +1,100 @@
+{
+  "schema": "m3-tornado-naming-execution-receipt/1",
+  "copyright": "2026 Hitesh Soliwal and Contributors to the Synexia Project",
+  "license": "Apache-2.0",
+  "canonical_repository": "hsoliwal/com.synexia",
+  "canonical_source_revision": "27684bafe464cadf1ce293d336e6badb0bf7fe0d",
+  "canonical_task": "synexia-openrewrite-recipes/recipes/tornado-m3-naming-20261029",
+  "recipe_ids": [
+    "com.synexia.m3.TornadoM3Naming20261029",
+    "com.synexia.m3.TornadoM3NamingRuntimeOutput20261029",
+    "com.synexia.m3.TornadoM3NamingMetadata20261029"
+  ],
+  "receipt_recipe_id": "com.synexia.m3.TornadoM3NamingReceipt20261029",
+  "target_repository": "hsoliwal/synexia-tornadovm",
+  "target_preimage_revision": "cc79842887028af98b468efaf7f22be129dc055c",
+  "qualified_product_tree_before_this_receipt": "27971eb19e32b53730406ac391ca11de502dd2bd",
+  "source_version": "6.1.1-jdk21-dev",
+  "java_package_family": "com.m3.tornado",
+  "transitional_module_family": "jdk.m3.tornado.*",
+  "intended_eventual_single_module": "jdk.m3.tornado",
+  "single_module_consolidation": "NOT_PERFORMED",
+  "sdk_execution": {
+    "java_inputs": 1791,
+    "java_changed": 1785,
+    "provider": "OpenRewrite8.90.4 with source-sealed existing Java21 visitor correction",
+    "parser_errors": 0,
+    "exact_preimage_print": "PASS",
+    "per_batch_second_pass": "UNCHANGED",
+    "metadata_paths": 86,
+    "metadata_first_changed": 86,
+    "metadata_second_changed": 0,
+    "drift_refusal": "PASS",
+    "receiver_readback": "PASS",
+    "product_path_coverage": "PASS_ALL_3656_PATHS",
+    "runtime_literal_occurrences_changed": 33,
+    "runtime_payload_owners": 8,
+    "new_downstream_recipe_files": 0
+  },
+  "recipe_tests": 56,
+  "compiled_java": {
+    "modules": 19,
+    "java_sources": 1764,
+    "classfiles_including_module_descriptors": 2982,
+    "compiled_type_surfaces": 2963,
+    "api_equal_modulo_names": true,
+    "module_resolution": "PASS"
+  },
+  "existing_test_totals": {
+    "successful_tests": 115,
+    "assumption_aborted_tests": 2,
+    "disabled_tests": 1
+  },
+  "jni_generated_symbols_matched": 27,
+  "evidence": {
+    "name-mapping.json": {
+      "canonical_path": "synexia-openrewrite-recipes/recipes/tornado-m3-naming-20261029/name-mapping.json",
+      "sha256": "fee48067a71ed860aeaa08a89b4d37b8f62c84937403f562f54543f000b0e0be"
+    },
+    "qualification.json": {
+      "canonical_path": "synexia-openrewrite-recipes/recipes/tornado-m3-naming-20261029/qualification.json",
+      "sha256": "269a56ee839d43a94d690c2ff008849d8744f8987faa1050962aa1faa8b37808"
+    },
+    "evidence/PRODUCT_CHANGES.tsv": {
+      "canonical_path": "synexia-openrewrite-recipes/recipes/tornado-m3-naming-20261029/evidence/PRODUCT_CHANGES.tsv",
+      "sha256": "fb135785107d20aad4219cd5617990c3e7cfeb6e7fda724124c98023195de302"
+    },
+    "evidence/JAVA_SDK_EXECUTION.tsv": {
+      "canonical_path": "synexia-openrewrite-recipes/recipes/tornado-m3-naming-20261029/evidence/JAVA_SDK_EXECUTION.tsv",
+      "sha256": "4d36f8ad6e9281b571806debcd41a99d2cc5c61e5e7186d7e0fbe41d7fe87eef"
+    },
+    "evidence/metadata-candidate.tsv": {
+      "canonical_path": "synexia-openrewrite-recipes/recipes/tornado-m3-naming-20261029/evidence/metadata-candidate.tsv",
+      "sha256": "be8d074eb10c6140529524f751bb7ffb7fbf9104cc6d4d06248c5edca3f4d3cb"
+    },
+    "evidence/recipe-source-custody.log": {
+      "canonical_path": "synexia-openrewrite-recipes/recipes/tornado-m3-naming-20261029/evidence/recipe-source-custody.log",
+      "sha256": "28492cac25fe58631d2bf0ace5e56db1f1611793fb10e2354f91f8599c16fa1d"
+    },
+    "verification/actual-source-receipt.json": {
+      "canonical_path": "synexia-openrewrite-recipes/recipes/tornado-m3-naming-20261029/verification/actual-source-receipt.json",
+      "sha256": "9a490dda03592795190a3fa1db5e401ad2fbe43244ffd04d8863521c425516b7"
+    }
+  },
+  "unexecuted_gates": [
+    "full_product_Maven_lifecycle",
+    "full_Synexia_reactor",
+    "repository_wide_provenance_gate",
+    "M3ResultOnlyHandoffGate_owner_unavailable",
+    "native_CUDA_cuDNN_CUTLASS_compilation_and_linking",
+    "physical_GPU_execution",
+    "installed_M3JDK_image_integration",
+    "eventual_single_module_consolidation",
+    "all_platform_acceptance",
+    "comparative_performance"
+  ],
+  "result_only": true,
+  "new_executable_recipe_files_delivered": 0,
+  "existing_recipe_mirrors": "PRESERVED_AS_INVENTORIED_MIGRATION_DEBT",
+  "disposition": "DRAFT_REVIEW_ONLY"
+}

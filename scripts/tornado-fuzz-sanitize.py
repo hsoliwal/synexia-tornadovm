@@ -35,7 +35,7 @@ import re
 import subprocess
 import sys
 
-MAIN = "tornado.fuzz/uk.ac.manchester.tornado.fuzz.FuzzMain"
+MAIN = "jdk.m3.tornado.fuzz/com.m3.tornado.fuzz.FuzzMain"
 CASE_RE = re.compile(r"CASE seed=(\d+)")
 GSEED_RE = re.compile(r"\bG(\d+)\b")
 ERR_SUMMARY_RE = re.compile(r"ERROR SUMMARY:\s*(\d+)\s*error")

@@ -1,0 +1,82 @@
+/*
+ * This file is part of Tornado: A heterogeneous programming framework:
+ * https://github.com/beehive-lab/tornadovm
+ *
+ * Copyright (c) 2026, APT Group, Department of Computer Science,
+ * School of Engineering, The University of Manchester. All rights reserved.
+ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+ *
+ * This code is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 only, as
+ * published by the Free Software Foundation.
+ *
+ * This code is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+ * version 2 for more details (a copy is included in the LICENSE file that
+ * accompanied this code).
+ *
+ * You should have received a copy of the GNU General Public License version
+ * 2 along with this work; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ */
+package com.m3.tornado.drivers.metal.graal.nodes;
+
+import jdk.vm.ci.meta.JavaKind;
+import jdk.vm.ci.meta.ResolvedJavaType;
+import jdk.vm.ci.meta.Value;
+import com.m3.tornado.graal.compiler.core.common.LIRKind;
+import com.m3.tornado.graal.compiler.core.common.type.StampFactory;
+import com.m3.tornado.graal.compiler.graph.NodeClass;
+import com.m3.tornado.graal.compiler.lir.Variable;
+import com.m3.tornado.graal.compiler.nodeinfo.NodeInfo;
+import com.m3.tornado.graal.compiler.nodes.ValuePhiNode;
+import com.m3.tornado.graal.compiler.nodes.calc.FloatingNode;
+import com.m3.tornado.graal.compiler.nodes.spi.LIRLowerable;
+import com.m3.tornado.graal.compiler.nodes.spi.NodeLIRBuilderTool;
+
+import com.m3.tornado.drivers.metal.graal.MetalArchitecture;
+import com.m3.tornado.drivers.metal.graal.asm.MetalAssembler;
+import com.m3.tornado.drivers.metal.graal.lir.MetalBinary;
+import com.m3.tornado.drivers.metal.graal.lir.MetalLIRStmt;
+import com.m3.tornado.drivers.metal.graal.lir.MetalKind;
+
+/**
+ * This node generates a pointer copy between two arrays in private memory.
+ */
+@NodeInfo
+public class FixedArrayCopyNode extends FloatingNode implements LIRLowerable  {
+
+    public static final NodeClass<FixedArrayCopyNode> TYPE = NodeClass.create(FixedArrayCopyNode.class);
+
+    @Input
+    protected ValuePhiNode conditionalPhiNode;
+
+    protected ResolvedJavaType elementType;
+    protected MetalAssembler.MetalBinaryTemplate pointerCopyTemplate;
+    protected MetalArchitecture.MetalMemoryBase memoryRegister;
+
+    public FixedArrayCopyNode(ValuePhiNode conditionalPhiNode, ResolvedJavaType elementType, MetalArchitecture.MetalMemoryBase memoryRegister) {
+        super(TYPE, StampFactory.forKind(JavaKind.Object));
+        this.conditionalPhiNode = conditionalPhiNode;
+        this.elementType = elementType;
+        this.memoryRegister = memoryRegister;
+        this.pointerCopyTemplate = MetalKind.resolvePrivatePointerCopyTemplate(elementType);
+    }
+
+    public MetalArchitecture.MetalMemoryBase getMemoryRegister() {
+        return memoryRegister;
+    }
+
+    @Override
+    public void generate(NodeLIRBuilderTool gen) {
+        LIRKind lirKind = LIRKind.value(gen.getLIRGeneratorTool().target().arch.getWordKind());
+        final Variable ptr = gen.getLIRGeneratorTool().newVariable(lirKind);
+        Value fixedArrayValue = gen.operand(conditionalPhiNode);
+        final MetalBinary.Expr declarationPtr = new MetalBinary.Expr(pointerCopyTemplate, lirKind, ptr, fixedArrayValue);
+        final MetalLIRStmt.ExprStmt ptrExpr = new MetalLIRStmt.ExprStmt(declarationPtr);
+        gen.getLIRGeneratorTool().append(ptrExpr);
+        gen.setResult(this, ptr);
+    }
+}

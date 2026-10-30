@@ -1,0 +1,12 @@
+@echo off & setlocal
+
+for /f %%b in (%TORNADOVM_HOME%\etc\tornado.backend) do set backends=%%b
+
+echo %backends% | findstr "opencl" >nul 2>nul
+if not errorlevel 1 (
+	echo:
+	echo Testing the native OpenCL API
+	echo:
+	%TORNADOVM_HOME%\bin\tornado.exe com.m3.tornado.drivers.opencl.tests.TestOpenCLJITCompiler
+	%TORNADOVM_HOME%\bin\tornado.exe com.m3.tornado.drivers.opencl.tests.TestOpenCLTornadoCompiler
+)

@@ -1,0 +1,64 @@
+/*
+ * This file is part of Tornado: A heterogeneous programming framework:
+ * https://github.com/beehive-lab/tornadovm
+ *
+ * Copyright (c) 2022, APT Group, Department of Computer Science,
+ * School of Engineering, The University of Manchester. All rights reserved.
+ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+ *
+ * This code is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 only, as
+ * published by the Free Software Foundation.
+ *
+ * This code is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+ * version 2 for more details (a copy is included in the LICENSE file that
+ * accompanied this code).
+ *
+ * You should have received a copy of the GNU General Public License version
+ * 2 along with this work; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ */
+package com.m3.tornado.drivers.opencl.runtime;
+
+import com.m3.tornado.api.common.Access;
+import com.m3.tornado.drivers.common.TornadoBufferProvider;
+import com.m3.tornado.drivers.opencl.OCLDeviceContext;
+import com.m3.tornado.drivers.opencl.enums.OCLMemFlags;
+
+import static com.m3.tornado.api.exceptions.TornadoInternalError.shouldNotReachHere;
+
+public class OCLBufferProvider extends TornadoBufferProvider {
+
+    public OCLBufferProvider(OCLDeviceContext deviceContext) {
+        super(deviceContext);
+    }
+
+    @Override
+    public long allocateBuffer(long size, Access access) {
+        long oclMemFlags = getOCLMemFlagForAccess(access);
+        return ((OCLDeviceContext) deviceContext).getMemoryManager().createBuffer(size, oclMemFlags).getBuffer();
+    }
+
+    @Override
+    protected void releaseBuffer(long buffer) {
+        ((OCLDeviceContext) deviceContext).getMemoryManager().releaseBuffer(buffer);
+    }
+
+    private static long getOCLMemFlagForAccess(Access access) {
+        switch (access) {
+            case READ_ONLY:
+                return OCLMemFlags.CL_MEM_READ_ONLY;
+            case WRITE_ONLY:
+                return OCLMemFlags.CL_MEM_WRITE_ONLY;
+            case READ_WRITE:
+                return OCLMemFlags.CL_MEM_READ_WRITE;
+            default:
+                // if access has not been deducted by sketcher set it as RW
+                return OCLMemFlags.CL_MEM_READ_WRITE;
+        }
+    }
+
+}

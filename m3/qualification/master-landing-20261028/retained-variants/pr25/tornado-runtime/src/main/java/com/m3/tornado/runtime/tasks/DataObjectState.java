@@ -1,0 +1,91 @@
+/*
+ * This file is part of Tornado: A heterogeneous programming framework:
+ * https://github.com/beehive-lab/tornadovm
+ *
+ * Copyright (c) 2013-2020, 2024, APT Group, Department of Computer Science,
+ * The University of Manchester. All rights reserved.
+ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+ *
+ * This code is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 only, as
+ * published by the Free Software Foundation.
+ *
+ * This code is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+ * version 2 for more details (a copy is included in the LICENSE file that
+ * accompanied this code).
+ *
+ * You should have received a copy of the GNU General Public License version
+ * 2 along with this work; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ */
+package com.m3.tornado.runtime.tasks;
+
+import java.util.concurrent.ConcurrentHashMap;
+
+import com.m3.tornado.api.common.TornadoDevice;
+import com.m3.tornado.api.exceptions.TornadoRuntimeException;
+import com.m3.tornado.api.memory.ObjectState;
+import com.m3.tornado.runtime.common.TornadoXPUDevice;
+import com.m3.tornado.runtime.common.XPUDeviceBufferState;
+
+public class DataObjectState implements ObjectState {
+
+    private ConcurrentHashMap<TornadoXPUDevice, XPUDeviceBufferState> deviceStates;
+
+    /** Last returned pair, as one holder so readers always observe a consistent (device, state). */
+    private volatile CachedDeviceState cachedDeviceState;
+
+    private record CachedDeviceState(TornadoXPUDevice device, XPUDeviceBufferState state) {
+    }
+
+    public DataObjectState() {
+        deviceStates = new ConcurrentHashMap<>();
+    }
+
+    @Override
+    public XPUDeviceBufferState getDeviceBufferState(TornadoDevice device) {
+        if (!(device instanceof TornadoXPUDevice)) {
+            throw new TornadoRuntimeException("[ERROR] Device not compatible: " + device.getClass());
+        }
+        // Objects are almost always used on the same device twice in a row.
+        final CachedDeviceState cached = cachedDeviceState;
+        if (cached != null && cached.device() == device) {
+            return cached.state();
+        }
+        final XPUDeviceBufferState deviceState = deviceStates.computeIfAbsent((TornadoXPUDevice) device, key -> new XPUDeviceBufferState());
+        cachedDeviceState = new CachedDeviceState((TornadoXPUDevice) device, deviceState);
+        return deviceState;
+    }
+
+    @Override
+    public DataObjectState clone() {
+        DataObjectState dataObjectState = new DataObjectState();
+        dataObjectState.deviceStates = new ConcurrentHashMap<>();
+        deviceStates.keySet().forEach(device -> {
+            XPUDeviceBufferState xpuDeviceBufferState = deviceStates.get(device).createSnapshot();
+            dataObjectState.deviceStates.put(device, xpuDeviceBufferState);
+        });
+        return dataObjectState;
+    }
+
+    @Override
+    public void clear() {
+        deviceStates.clear();
+        cachedDeviceState = null;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+
+        for (TornadoXPUDevice device : deviceStates.keySet()) {
+            sb.append(device.toString()).append(" ");
+        }
+        sb.append("]");
+
+        return sb.toString();
+    }
+}

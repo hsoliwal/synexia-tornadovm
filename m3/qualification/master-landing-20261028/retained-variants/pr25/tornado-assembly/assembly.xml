@@ -1,0 +1,224 @@
+<?xml version="1.0"?>
+<assembly xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns="http://maven.apache.org/ASSEMBLY/2.0.0"
+          xsi:schemaLocation="http://maven.apache.org/ASSEMBLY/2.0.0 http://maven.apache.org/xsd/assembly-2.0.0.xsd">
+    <id>bin</id>
+    <formats>
+        <format>dir</format>
+    </formats>
+    <includeBaseDirectory>true</includeBaseDirectory>
+    <baseDirectory>tornadovm-${project.version}-${tornado.backend}/</baseDirectory>
+    <fileSets>
+        <fileSet>
+            <directory>../</directory>
+            <!-- README file in share/tornado -->
+            <includes>
+                <include>README.md</include>
+            </includes>
+            <outputDirectory>share/tornado</outputDirectory>
+            <fileMode>0444</fileMode>
+        </fileSet>
+        <fileSet>
+            <directory>../</directory>
+            <!-- License file in root directory -->
+            <includes>
+                <include>LICENSE_APACHE2</include>
+                <include>LICENSE_GPLv2CE</include>
+                <include>LICENSE_GPLv2</include>
+                <include>LICENSE_MIT</include>
+            </includes>
+            <outputDirectory>./</outputDirectory>
+            <fileMode>0444</fileMode>
+        </fileSet>
+        <fileSet>
+            <directory>src/bin</directory>
+            <!-- tornado scripts -->
+            <outputDirectory>bin</outputDirectory>
+            <includes>
+                <include>*.sh</include>
+                <include>*.cmd</include>
+                <include>*.py</include>
+                <include>tornado</include>
+                <include>tornado-test</include>
+                <include>tornado-benchmarks.py</include>
+                <include>misc/*.py</include>
+            </includes>
+            <lineEnding>unix</lineEnding>
+            <fileMode>0755</fileMode>
+        </fileSet>
+        <fileSet>
+            <directory>src/bin</directory>
+            <!-- Windows executables (binary files - without line ending conversion) -->
+            <outputDirectory>bin</outputDirectory>
+            <includes>
+                <include>*.exe</include>
+                <include>*.spec</include>
+            </includes>
+            <fileMode>0755</fileMode>
+        </fileSet>
+        <fileSet>
+            <directory>src/etc</directory>
+            <!-- tornado etc configuration -->
+            <outputDirectory>etc</outputDirectory>
+            <includes>
+                <include>**/*</include>
+            </includes>
+            <excludes>
+                <exclude>tornado.backend</exclude>
+                <exclude>tornado.jdk</exclude>
+            </excludes>
+            <filtered>true</filtered>
+            <lineEnding>unix</lineEnding>
+            <fileMode>0666</fileMode>
+        </fileSet>
+        <fileSet>
+            <directory>src/etc</directory>
+            <!-- tornado.backend file (pre-created by compile script, no filtering needed) -->
+            <outputDirectory>etc</outputDirectory>
+            <includes>
+                <include>tornado.backend</include>
+                <include>tornado.jdk</include>
+            </includes>
+            <filtered>false</filtered>
+            <lineEnding>unix</lineEnding>
+            <fileMode>0666</fileMode>
+        </fileSet>
+        <fileSet>
+            <directory>src/etc</directory>
+            <outputDirectory>./</outputDirectory>
+            <includes>
+                <include>README.md</include>
+            </includes>
+            <filtered>true</filtered>
+            <lineEnding>unix</lineEnding>
+            <fileMode>0777</fileMode>
+        </fileSet>
+        <fileSet>
+            <directory>../</directory>
+            <outputDirectory>./</outputDirectory>
+            <includes>
+                <include>CONTRIBUTING.md</include>
+            </includes>
+            <fileMode>0444</fileMode>
+        </fileSet>
+        <fileSet>
+            <directory>../docs/source</directory>
+            <outputDirectory>./</outputDirectory>
+            <includes>
+                <include>CHANGELOG.rst</include>
+            </includes>
+            <fileMode>0444</fileMode>
+        </fileSet>
+        <fileSet>
+            <directory>../tornado-drivers/opencl-jni/target/windows-i386-release/cmake/Release</directory>
+            <outputDirectory>./lib/</outputDirectory>
+            <includes>
+                <include>*.dll</include>
+            </includes>
+        </fileSet>
+        <fileSet>
+            <directory>../tornado-drivers/opencl-jni/target/windows-amd64-release/cmake/Release</directory>
+            <outputDirectory>./lib/</outputDirectory>
+            <includes>
+                <include>*.dll</include>
+            </includes>
+        </fileSet>
+        <fileSet>
+            <directory>src/com/m3/tornado/examples</directory>
+            <outputDirectory>examples</outputDirectory>
+            <includes><include>TestTornado.java</include></includes>
+            <fileMode>0666</fileMode>
+        </fileSet>
+        <fileSet>
+            <directory>src/examples</directory>
+            <!-- Tornado full examples copied into examples directory -->
+            <outputDirectory>examples</outputDirectory>
+            <includes>
+                <include>**/*</include>
+            </includes>
+            <fileMode>0666</fileMode>
+        </fileSet>
+        <fileSet>
+            <directory>../graalJars</directory>
+            <!-- Bare-minimum Graal JARs for JDK 21. The compiler is shipped relocated as
+                 the vendored tornado.graal module (tornado-graal-*.jar) so it resolves
+                 from the regular module-path; word/collections/truffle-compiler are its
+                 transitive requires. truffle-api/polyglot/graal-sdk/compiler-management
+                 are excluded. -->
+            <outputDirectory>share/java/graalJars</outputDirectory>
+            <includes>
+                <include>tornado-graal-*.jar</include>
+                <include>truffle-compiler-*.jar</include>
+                <include>collections-*.jar</include>
+                <include>word-*.jar</include>
+            </includes>
+            <fileMode>0644</fileMode>
+        </fileSet>
+        <fileSet>
+            <directory>../graalJars</directory>
+            <!-- Vendored jdk.internal.vm.ci (JDK-21 jvmci repackaged as a same-named
+                 application module by bin/build_jvmci_module.py). Shipped to a SEPARATE
+                 directory: the tornado launcher adds it to the module-path ONLY on JDK 27+
+                 where the platform no longer provides jdk.internal.vm.ci. On JDK <=26 a
+                 module of the same name would collide with the platform module. -->
+            <outputDirectory>share/java/jvmci</outputDirectory>
+            <includes>
+                <include>jvmci-*.jar</include>
+            </includes>
+            <fileMode>0644</fileMode>
+        </fileSet>
+    </fileSets>
+    <moduleSets>
+        <moduleSet>
+            <!-- Enable access to all projects in the current multimodule build! -->
+            <useAllReactorProjects>true</useAllReactorProjects>
+            <!-- Now, select which projects to include in this module-set. -->
+            <includes>
+                <include>io.github.beehive-lab:tornado-api</include>
+                <include>io.github.beehive-lab:tornado-runtime</include>
+                <include>io.github.beehive-lab:tornado-annotation</include>
+                <include>io.github.beehive-lab:tornado-matrices</include>
+                <include>io.github.beehive-lab:tornado-drivers-common</include>
+                <include>io.github.beehive-lab:tornado-drivers-opencl</include>
+                <include>io.github.beehive-lab:tornado-drivers-metal</include>
+                <include>io.github.beehive-lab:tornado-examples</include>
+                <include>io.github.beehive-lab:tornado-benchmarks</include>
+                <include>io.github.beehive-lab:tornado-unittests</include>
+                <include>io.github.beehive-lab:tornado-cublas</include>
+                <include>io.github.beehive-lab:tornado-curand</include>
+                <include>io.github.beehive-lab:tornado-cufft</include>
+                <include>io.github.beehive-lab:tornado-cudnn</include>
+                <include>io.github.beehive-lab:tornado-cusparse</include>
+                <include>io.github.beehive-lab:tornado-cutlass</include>
+            </includes>
+            <binaries>
+                <outputDirectory>share/java/tornado</outputDirectory>
+                <unpack>false</unpack>
+            </binaries>
+        </moduleSet>
+    </moduleSets>
+    <dependencySets>
+        <dependencySet>
+            <outputDirectory>lib</outputDirectory>
+            <unpack>true</unpack>
+            <useProjectArtifact>false</useProjectArtifact>
+            <useStrictFiltering>false</useStrictFiltering>
+            <unpackOptions>
+                <includes>
+                    <include>*.dylib</include>
+                    <include>*.dll</include>
+                    <include>*.so</include>
+                </includes>
+            </unpackOptions>
+            <includes>
+                <include>io.github.beehive-lab:tornado-drivers-metal-jni:jar:libs</include>
+                <include>io.github.beehive-lab:tornado-drivers-opencl-jni:jar:libs</include>
+                <include>io.github.beehive-lab:tornado-drivers-cuda-jni:jar:libs</include>
+                <include>io.github.beehive-lab:tornado-drivers-cublas-jni:jar:libs</include>
+                <include>io.github.beehive-lab:tornado-drivers-cufft-jni:jar:libs</include>
+                <include>io.github.beehive-lab:tornado-drivers-cudnn-jni:jar:libs</include>
+                <include>io.github.beehive-lab:tornado-drivers-cusparse-jni:jar:libs</include>
+                <include>io.github.beehive-lab:tornado-drivers-cutlass-jni:jar:libs</include>
+            </includes>
+        </dependencySet>
+    </dependencySets>
+</assembly>

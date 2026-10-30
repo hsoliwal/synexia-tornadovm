@@ -1,0 +1,96 @@
+/*
+ * Copyright (c) 2020, APT Group, Department of Computer Science,
+ * School of Engineering, The University of Manchester. All rights reserved.
+ * Copyright (c) 2018, 2020, APT Group, Department of Computer Science,
+ * The University of Manchester. All rights reserved.
+ * Copyright (c) 2009, 2017, Oracle and/or its affiliates. All rights reserved.
+ * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
+ *
+ * This code is free software; you can redistribute it and/or modify it
+ * under the terms of the GNU General Public License version 2 only, as
+ * published by the Free Software Foundation.
+ *
+ * This code is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
+ * version 2 for more details (a copy is included in the LICENSE file that
+ * accompanied this code).
+ *
+ * You should have received a copy of the GNU General Public License version
+ * 2 along with this work; if not, write to the Free Software Foundation,
+ * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ *
+ */
+package com.m3.tornado.runtime.graal;
+
+import com.m3.tornado.graal.compiler.lir.phases.LIRPhaseSuite;
+import com.m3.tornado.graal.compiler.lir.phases.PostAllocationOptimizationPhase.PostAllocationOptimizationContext;
+import com.m3.tornado.graal.compiler.lir.phases.PreAllocationOptimizationPhase.PreAllocationOptimizationContext;
+import com.m3.tornado.graal.compiler.options.OptionValues;
+import com.m3.tornado.graal.compiler.phases.common.AddressLoweringByNodePhase;
+import com.m3.tornado.graal.compiler.phases.common.CanonicalizerPhase;
+
+import jdk.vm.ci.meta.MetaAccessProvider;
+import com.m3.tornado.api.TornadoDeviceContext;
+import com.m3.tornado.runtime.graal.compiler.TornadoCompilerConfiguration;
+import com.m3.tornado.runtime.graal.compiler.TornadoHighTier;
+import com.m3.tornado.runtime.graal.compiler.TornadoLowTier;
+import com.m3.tornado.runtime.graal.compiler.TornadoMidTier;
+import com.m3.tornado.runtime.graal.compiler.TornadoSketchTier;
+import com.m3.tornado.runtime.graal.phases.TornadoAllocationStage;
+
+public class TornadoSuites {
+
+    private final TornadoSketchTier sketchTier;
+    private final TornadoHighTier highTier;
+    private final TornadoMidTier midTier;
+    private final TornadoLowTier lowTier;
+
+    private final TornadoAllocationStage allocStage;
+    private final LIRPhaseSuite<PreAllocationOptimizationContext> preAllocStage;
+    private final LIRPhaseSuite<PostAllocationOptimizationContext> postAllocStage;
+
+    public TornadoSuites(OptionValues options, TornadoDeviceContext deviceContext, TornadoCompilerConfiguration config, MetaAccessProvider metaAccessProvider,
+            CanonicalizerPhase.CustomSimplification canonicalizer, AddressLoweringByNodePhase.AddressLowering addressLowering) {
+        sketchTier = config.createSketchTier(options, canonicalizer);
+        highTier = config.createHighTier(options, deviceContext, canonicalizer, metaAccessProvider);
+        midTier = config.createMidTier(options);
+        lowTier = config.createLowTier(options, deviceContext, addressLowering);
+        allocStage = config.createAllocationStage(options);
+        preAllocStage = config.createPreAllocationOptimizationStage(options);
+        postAllocStage = config.createPostAllocationOptimizationStage(options);
+    }
+
+    public TornadoSketchTier getSketchTier() {
+        return sketchTier;
+    }
+
+    public TornadoHighTier getHighTier() {
+        return highTier;
+    }
+
+    public TornadoMidTier getMidTier() {
+        return midTier;
+    }
+
+    public TornadoLowTier getLowTier() {
+        return lowTier;
+    }
+
+    public LIRPhaseSuite<PreAllocationOptimizationContext> getPreAllocationOptimizationStage() {
+        return preAllocStage;
+    }
+
+    public TornadoAllocationStage getAllocationStage() {
+        return allocStage;
+    }
+
+    public LIRPhaseSuite<PostAllocationOptimizationContext> getPostAllocationOptimizationStage() {
+        return postAllocStage;
+    }
+
+    public TornadoLIRSuites getLIRSuites() {
+        return new TornadoLIRSuites(preAllocStage, allocStage, postAllocStage);
+    }
+
+}

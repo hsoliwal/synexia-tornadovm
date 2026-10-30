@@ -1,0 +1,2 @@
+com.m3.tornado.cublas.provider.CuBlasLibraryProvider
+com.m3.tornado.cublas.provider.CuBlasLtLibraryProvider

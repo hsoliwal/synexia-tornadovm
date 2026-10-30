@@ -7,6 +7,232 @@ This file summarizes the new features and major changes for each *TornadoVM* ver
 
 CHANGELOG
 
+TornadoVM 8.0.0
+---------------
+26/10/26
+
+Compatibility
+~~~~~~~~~~~~
+
+- `#1268 <https://github.com/beehive-lab/TornadoVM/pull/1268>`_: CI: fast tests on PRs to develop (Linux + macOS), no tests on merge, nightly full run on develop
+- `#1264 <https://github.com/beehive-lab/TornadoVM/pull/1264>`_: [docs] Fix the stale docs version and the release step that bumps it
+
+Bug Fixes
+~~~~~~~~~~~~
+
+- `#1271 <https://github.com/beehive-lab/TornadoVM/pull/1271>`_: [cuda] Synchronize CUDADevice version and OpenCL-API query helpers
+
+Other Changes
+~~~~~~~~~~~~
+
+- `#1277 <https://github.com/beehive-lab/TornadoVM/pull/1277>`_: [cuda] Add tornado.cuda.sched to choose how host threads wait
+- `#1278 <https://github.com/beehive-lab/TornadoVM/pull/1278>`_: [build] Find Python modules pip just installed in a new user site
+- `#1279 <https://github.com/beehive-lab/TornadoVM/pull/1279>`_: [runtime] Warn when a KernelContext task runs without a worker grid
+- `#1283 <https://github.com/beehive-lab/TornadoVM/pull/1283>`_: [release] Fetch libcudf for the shim's CUDA and check the shims' glibc floor
+- `#1290 <https://github.com/beehive-lab/TornadoVM/pull/1290>`_: [mlx] Report MLX unit tests as unsupported on every non-Metal backend
+- `#1291 <https://github.com/beehive-lab/TornadoVM/pull/1291>`_: [runtime] Check the context slot, not the backend device index, when an interpreter opens its context
+- `#1289 <https://github.com/beehive-lab/TornadoVM/pull/1289>`_: [cuda] Unpin host memory off the threads that run plans, so multi-GPU NCCL plans in one process cannot deadlock
+- `#1288 <https://github.com/beehive-lab/TornadoVM/pull/1288>`_: [nccl] Overlap an all-reduce with other work on a side stream
+- `#1287 <https://github.com/beehive-lab/TornadoVM/pull/1287>`_: Skip NaN comparisons in TestFloatBitsAndComparisons under OpenCL fast-relaxed math
+- `#1281 <https://github.com/beehive-lab/TornadoVM/pull/1281>`_: [tc] Speed up the TC compiler on large kernels
+- `#1285 <https://github.com/beehive-lab/TornadoVM/pull/1285>`_: [cublas][cudnn] BF16 GemmEx with an FP32 result, convolution gradients, attention on a packed QKV projection
+- `#1280 <https://github.com/beehive-lab/TornadoVM/pull/1280>`_: [cuda] Load the newest CUDA library versions first
+- `#1276 <https://github.com/beehive-lab/TornadoVM/pull/1276>`_: [cudf] Keep an eighth of the card in the memory pool between calls
+- `#1275 <https://github.com/beehive-lab/TornadoVM/pull/1275>`_: Convert FP8 scalars through tile casts so FP8 scale and compare compile under CUDA Tile
+- `#1272 <https://github.com/beehive-lab/TornadoVM/pull/1272>`_: Fix Windows/CUDA 13 portability issues in TC tests, example kernel, cuSPARSE and SDK packaging
+- `#1274 <https://github.com/beehive-lab/TornadoVM/pull/1274>`_: CI: skip PR CI when a pull request only changes images
+- `#1273 <https://github.com/beehive-lab/TornadoVM/pull/1273>`_: [chore] Update logo in README
+- `#1270 <https://github.com/beehive-lab/TornadoVM/pull/1270>`_: [unittests] Fix TestVirtualDeviceKernel failing on every platform: compare kernels without source positions
+- `#1269 <https://github.com/beehive-lab/TornadoVM/pull/1269>`_: CI: wait for Maven Central before dispatching downstream version bumps
+- `#1267 <https://github.com/beehive-lab/TornadoVM/pull/1267>`_: [docs] Move fast start-up up in the README and refresh the Leyden/native image guide
+- `#1249 <https://github.com/beehive-lab/TornadoVM/pull/1249>`_: Build: install only the Python modules the scripts use, and show why pip refused
+- `#1266 <https://github.com/beehive-lab/TornadoVM/pull/1266>`_: Relicense TornadoVM under the Apache License, Version 2.0
+- `#1265 <https://github.com/beehive-lab/TornadoVM/pull/1265>`_: [release] Build the CUDA SDK on Linux aarch64 in the release SDK workflow
+- `#1228 <https://github.com/beehive-lab/TornadoVM/pull/1228>`_: [compiler] Replace the Graal compiler with TC, TornadoVM's own Java bytecode to kernel compiler
+- `#1260 <https://github.com/beehive-lab/TornadoVM/pull/1260>`_: [Hybrid API][OpenCL] Add CLBlast library task support
+- `#1263 <https://github.com/beehive-lab/TornadoVM/pull/1263>`_: Merge withCompilerFlags into the backend defaults on every backend, and add withCompilerFlags(flags)
+- `#1261 <https://github.com/beehive-lab/TornadoVM/pull/1261>`_: [cudnn] Channels-last (NHWC) convolutions, FP32 and FP16
+- `#1250 <https://github.com/beehive-lab/TornadoVM/pull/1250>`_: Build: cudnn-jni and cutlass-jni find JNI on a headless JDK
+- `#1251 <https://github.com/beehive-lab/TornadoVM/pull/1251>`_: Build: skip the cuDNN shim without cuDNN instead of failing the CUDA backend
+- `#1255 <https://github.com/beehive-lab/TornadoVM/pull/1255>`_: [cuda] Report prebuilt device-launch kernels as unsupported on a pre-CUDA-12 NVRTC
+- `#1254 <https://github.com/beehive-lab/TornadoVM/pull/1254>`_: [cudnn] Report fused SDPA as unsupported when the device or build cannot run it
+- `#1253 <https://github.com/beehive-lab/TornadoVM/pull/1253>`_: Fix stale Metal native-stream docs
+- `#1238 <https://github.com/beehive-lab/TornadoVM/pull/1238>`_: Keep outgrown cuDNN workspaces until the context is destroyed
+- `#1252 <https://github.com/beehive-lab/TornadoVM/pull/1252>`_: [cudnn] Add an FP16 convolution with tensor-core maths
+- `#1245 <https://github.com/beehive-lab/TornadoVM/pull/1245>`_: Fix Maven Central deploy hang caused by concurrent GPG signing
+- `#1244 <https://github.com/beehive-lab/TornadoVM/pull/1244>`_: [metal] Wait for MLX library work before host reads and writes under -Dtornado.mlx.async=true
+- `#1243 <https://github.com/beehive-lab/TornadoVM/pull/1243>`_: Look up a task's device-local index once
+
+
+TornadoVM 7.3.1
+---------------
+15/10/26
+
+Other Changes
+~~~~~~~~~~~~
+
+- `#1240 <https://github.com/beehive-lab/TornadoVM/pull/1240>`_: Deploy tornado-mlx and tornado-nccl to Maven Central in the release pipeline
+
+
+TornadoVM 7.3.0
+---------------
+14/10/26
+
+Other Changes
+~~~~~~~~~~~~
+
+- `#1237 <https://github.com/beehive-lab/TornadoVM/pull/1237>`_: [mlx] Asynchronous MLX dispatch on Metal and cached-context attention
+- `#1180 <https://github.com/beehive-lab/TornadoVM/pull/1180>`_: [nccl] Add tornado-nccl: NCCL collectives, send/recv, groups and plan-group steps on TornadoVM device buffers
+- `#1128 <https://github.com/beehive-lab/TornadoVM/pull/1128>`_: Keep only the latest execution result by default, with an option to keep all
+- `#1188 <https://github.com/beehive-lab/TornadoVM/pull/1188>`_: [mlx] Apple MLX library tasks on the Metal backend
+- `#1235 <https://github.com/beehive-lab/TornadoVM/pull/1235>`_: Upgrade unit tests to JUnit 6.1.3, and make tornado-test fail on crashed test JVMs and on failures without -V
+- `#1234 <https://github.com/beehive-lab/TornadoVM/pull/1234>`_: Move tornado-benchmarks to beehive-lab/tornadovm-benchmark-suite
+- `#1178 <https://github.com/beehive-lab/TornadoVM/pull/1178>`_: [cuda] Abandon a CUDA-graph capture that fails part-way so later captures on the device work
+- `#1187 <https://github.com/beehive-lab/TornadoVM/pull/1187>`_: [cuda] Follow the calling thread's stream in the CUDA library providers
+- `#1230 <https://github.com/beehive-lab/TornadoVM/pull/1230>`_: [tests] Skip device-specific TestDevices cases and relax TestWarmUp timing bound
+- `#1231 <https://github.com/beehive-lab/TornadoVM/pull/1231>`_: [tests] Fix KernelContext mxm and one-block reduction tests
+- `#1179 <https://github.com/beehive-lab/TornadoVM/pull/1179>`_: [cuda] Give each GPU its own primary context instead of sharing GPU 0's
+- `#1177 <https://github.com/beehive-lab/TornadoVM/pull/1177>`_: [cuda] Capture CUDA graphs in thread-local mode so plans on other threads can keep working
+- `#1185 <https://github.com/beehive-lab/TornadoVM/pull/1185>`_: [cublas] Follow the calling thread's stream instead of the one the handle was created on
+- `#1198 <https://github.com/beehive-lab/TornadoVM/pull/1198>`_: Add 32- and 64-bit word access to ByteArray
+- `#1209 <https://github.com/beehive-lab/TornadoVM/pull/1209>`_: [cuda] Launch CUDA graphs without waiting when they copy nothing to the host
+- `#1213 <https://github.com/beehive-lab/TornadoVM/pull/1213>`_: Import a graph's unnamed consumes from the previous graph when it also consumes by name
+- `#1216 <https://github.com/beehive-lab/TornadoVM/pull/1216>`_: [metal] Encode kernels into shared command buffers and wait only where the host needs a result (6x LLM decode)
+- `#1217 <https://github.com/beehive-lab/TornadoVM/pull/1217>`_: [metal] Resolve the Objective-C message-send handles once instead of on every send
+- `#1225 <https://github.com/beehive-lab/TornadoVM/pull/1225>`_: [graal] Report the backends' DivNode as non-associative so loop reassociation skips nested divisions
+- `#1226 <https://github.com/beehive-lab/TornadoVM/pull/1226>`_: [cuda] Reinterpret the bits in Float.float16ToFloat(short) instead of converting the integer value
+- `#1224 <https://github.com/beehive-lab/TornadoVM/pull/1224>`_: [metal][cuda] Vector-width loads from FloatArray and HalfFloatArray
+- `#1223 <https://github.com/beehive-lab/TornadoVM/pull/1223>`_: [metal] Half-precision, transposed and threadgroup-store SIMD-group matrix primitives
+- `#1222 <https://github.com/beehive-lab/TornadoVM/pull/1222>`_: [cudf] Release SDKs build and ship libtornado-cudf.so
+- `#1219 <https://github.com/beehive-lab/TornadoVM/pull/1219>`_: [cudf] Give the shim's memory pool a release threshold (TORNADO_CUDF_POOL_RELEASE_MB)
+- `#1220 <https://github.com/beehive-lab/TornadoVM/pull/1220>`_: [cudf] readParquetColumns reads evolved schemas: absent columns as nulls, int and float widened
+- `#1215 <https://github.com/beehive-lab/TornadoVM/pull/1215>`_: [cudf] DECIMAL columns read and written as unscaled INT64; FLOAT columns written
+- `#1221 <https://github.com/beehive-lab/TornadoVM/pull/1221>`_: [cudf] writeParquetColumnsWithStrings: STRING columns gathered to the written rows inside the write
+- `#1196 <https://github.com/beehive-lab/TornadoVM/pull/1196>`_: [cuda] Add a 16-byte cp.async copy to KernelContext
+- `#1214 <https://github.com/beehive-lab/TornadoVM/pull/1214>`_: [metal] Report why a compute pipeline could not be created instead of exiting silently
+- `#1201 <https://github.com/beehive-lab/TornadoVM/pull/1201>`_: [cuda] Unroll CUDA Tile k-loops per architecture, with tornado.cuda.tile.unrollKLoop to override
+- `#1211 <https://github.com/beehive-lab/TornadoVM/pull/1211>`_: [cudf] readParquetColumns reads FLOAT32 columns widened to FP64
+- `#1208 <https://github.com/beehive-lab/TornadoVM/pull/1208>`_: [runtime] Sketches built concurrently keep their own argument accesses
+- `#1210 <https://github.com/beehive-lab/TornadoVM/pull/1210>`_: [cuda][metal] Full thread blocks for loop bounds with no usable divisor (up to 99x CUDA, 2.7x Metal)
+- `#1206 <https://github.com/beehive-lab/TornadoVM/pull/1206>`_: [cudf] sortKeys: sort a key set once on the device, probe it with a kernel
+- `#1207 <https://github.com/beehive-lab/TornadoVM/pull/1207>`_: [cudf] sortedOrderLongs, readParquetStringColumns, groupAggregateLongs
+- `#1203 <https://github.com/beehive-lab/TornadoVM/pull/1203>`_: [runtime] Release the device buffers of device-only intermediates when a plan is freed
+- `#1204 <https://github.com/beehive-lab/TornadoVM/pull/1204>`_: [cuda] Wait for the zero-fill of a recycled write-only buffer before handing it out
+- `#1205 <https://github.com/beehive-lab/TornadoVM/pull/1205>`_: [cudf] writeParquetColumns: write device buffers to a Parquet file
+- `#1200 <https://github.com/beehive-lab/TornadoVM/pull/1200>`_: [cudf] Typed, nullable Parquet reads and set membership, for lakehouse merge-on-read
+
+
+TornadoVM 7.2.0
+---------------
+07/10/26
+
+Other Changes
+~~~~~~~~~~~~
+
+- `#1183 <https://github.com/beehive-lab/TornadoVM/pull/1183>`_: Chain consumeFromDevice between graphs when a whole multi-graph plan executes
+- `#1163 <https://github.com/beehive-lab/TornadoVM/pull/1163>`_: [api] Support native arrays with more than Integer.MAX_VALUE elements
+- `#1195 <https://github.com/beehive-lab/TornadoVM/pull/1195>`_: Add KernelContext mmaLoadA/mmaLoadB fragment loads from global HalfFloatArray (CUDA)
+- `#1194 <https://github.com/beehive-lab/TornadoVM/pull/1194>`_: [cuda] Keep CUDA Tile k-loops rolled instead of fully unrolling them
+- `#1191 <https://github.com/beehive-lab/TornadoVM/pull/1191>`_: Remove the SNMP UPS power reader and the snmp4j dependency
+- `#1173 <https://github.com/beehive-lab/TornadoVM/pull/1173>`_: Fix device index for tasks on identical GPUs
+- `#1182 <https://github.com/beehive-lab/TornadoVM/pull/1182>`_: Fix --ea: disable assertions for the relocated tornado.graal package
+
+
+TornadoVM 7.1.0
+---------------
+04/10/26
+
+Compatibility
+~~~~~~~~~~~~
+
+- `#1170 <https://github.com/beehive-lab/TornadoVM/pull/1170>`_: Scope the device-reset flag to the execution plan that was reset
+
+Bug Fixes
+~~~~~~~~~~~~
+
+- `#1132 <https://github.com/beehive-lab/TornadoVM/pull/1132>`_: [opencl] Handle LogicConstantNode in branch and loop conditions
+
+Other Changes
+~~~~~~~~~~~~
+
+- `#1175 <https://github.com/beehive-lab/TornadoVM/pull/1175>`_: [cuda] Report driver dispatch time for kernel launches and data transfers
+- `#1174 <https://github.com/beehive-lab/TornadoVM/pull/1174>`_: [test] Run PrebuiltTests on the device selected by tornado.unittests.device
+- `#1169 <https://github.com/beehive-lab/TornadoVM/pull/1169>`_: [cudf] Bind STRING columns and cudf::strings::contains_re over them
+- `#1168 <https://github.com/beehive-lab/TornadoVM/pull/1168>`_: [cudf] Bind cudf::io::read_parquet, so a column reaches the device without the host
+- `#1167 <https://github.com/beehive-lab/TornadoVM/pull/1167>`_: [cudf] Allocate through an RMM pool instead of a raw cudaMalloc per call
+- `#1165 <https://github.com/beehive-lab/TornadoVM/pull/1165>`_: [profiler] Record COPY_OUT_TIME for copy-outs when dependency tracking is off
+- `#1164 <https://github.com/beehive-lab/TornadoVM/pull/1164>`_: [ci] Run Build & Test on every PR label event and the full sweep weekly
+- `#1171 <https://github.com/beehive-lab/TornadoVM/pull/1171>`_: Make withCompilerFlags reach the compiler, and add TornadoExecutionPlan.withStrictFloatingPoint()
+- `#1166 <https://github.com/beehive-lab/TornadoVM/pull/1166>`_: [unittests] Fix TestDynamicParallelism#testPendingLaunchCountMustBePositive on OpenCL and Metal
+- `#1172 <https://github.com/beehive-lab/TornadoVM/pull/1172>`_: [cuda] Emit signed char for Java bytes so negative values survive on AArch64 hosts
+- `#1162 <https://github.com/beehive-lab/TornadoVM/pull/1162>`_: Test task graphs at the initial capacity and growing twice
+- `#1160 <https://github.com/beehive-lab/TornadoVM/pull/1160>`_: [cuda] Fix host-memory pinning across execution plans: keep live plans' pins, pin only per-execution transfers
+- `#1159 <https://github.com/beehive-lab/TornadoVM/pull/1159>`_: [api] transferToHost on a multi-graph plan: only the graphs that take the object copy it out
+- `#1158 <https://github.com/beehive-lab/TornadoVM/pull/1158>`_: [runtime][opencl][cuda][metal] Free every task-graph of a plan on close and ignore double frees of shared buffers
+- `#1124 <https://github.com/beehive-lab/TornadoVM/pull/1124>`_: Skip String.format in TornadoLogger when logging is disabled
+- `#1126 <https://github.com/beehive-lab/TornadoVM/pull/1126>`_: Replace streams and per-execution collections on the dispatch path with loops and a reused count array
+- `#1127 <https://github.com/beehive-lab/TornadoVM/pull/1127>`_: Remove the hard-coded -XX:+UseParallelGC
+- `#1136 <https://github.com/beehive-lab/TornadoVM/pull/1136>`_: [cuda] Dynamic Parallelism: launch kernels from device code with KernelContext.launch
+- `#1140 <https://github.com/beehive-lab/TornadoVM/pull/1140>`_: [opencl][cuda][metal] Lower >>> as a logical shift
+- `#1141 <https://github.com/beehive-lab/TornadoVM/pull/1141>`_: [opencl][cuda][metal] Support float bit reinterpretation and honour unordered float comparisons in branch conditions
+- `#1143 <https://github.com/beehive-lab/TornadoVM/pull/1143>`_: Fix task graph hang when a task receives the same array in several written arguments
+- `#1142 <https://github.com/beehive-lab/TornadoVM/pull/1142>`_: Let task graphs grow past 256 tasks and 1024 graph nodes
+- `#1144 <https://github.com/beehive-lab/TornadoVM/pull/1144>`_: [opencl][cuda][metal] Fold binary math intrinsics of constants without aborting, and support constant branch conditions on Metal
+- `#1145 <https://github.com/beehive-lab/TornadoVM/pull/1145>`_: [metal] Pass global sizes with setBytes and wait for command buffers on a shared event
+- `#1155 <https://github.com/beehive-lab/TornadoVM/pull/1155>`_: [cuda] cuVS library provider: brute-force kNN, all-neighbors k-NN graph and k-means as library tasks
+- `#1146 <https://github.com/beehive-lab/TornadoVM/pull/1146>`_: [opencl][cuda][metal] Publish the backend device list only after it is filled
+- `#1138 <https://github.com/beehive-lab/TornadoVM/pull/1138>`_: [compiler] Fix 'if (A || B) {...} else {...}': else branch falling through (#1137)
+
+
+TornadoVM 7.0.1
+---------------
+24/09/26
+
+Other Changes
+~~~~~~~~~~~~
+
+- `#1116 <https://github.com/beehive-lab/TornadoVM/pull/1116>`_: Deploy the CUDA backend (cuTile) and all CUDA library bindings to Maven Central
+- `#1117 <https://github.com/beehive-lab/TornadoVM/pull/1117>`_: Guard FloatAtomicFail on CUDA and drop a stray javac argfile
+- `#1115 <https://github.com/beehive-lab/TornadoVM/pull/1115>`_: Fix the IntelliJ build path so it produces a runnable SDK
+
+
+TornadoVM 7.0.0
+---------------
+22/09/26
+
+Compatibility
+~~~~~~~~~~~~
+
+- `#1112 <https://github.com/beehive-lab/TornadoVM/pull/1112>`_: [docs] Document the TileContext API in the programming guide and rename the Kernel API section to KernelContext API
+
+Bug Fixes
+~~~~~~~~~~~~
+
+- `#1098 <https://github.com/beehive-lab/TornadoVM/pull/1098>`_: [cuda] Let a converted half be read back as a value, not only stored
+
+Other Changes
+~~~~~~~~~~~~
+
+- `#1092 <https://github.com/beehive-lab/TornadoVM/pull/1092>`_: Zero-initialize private arrays allocated with new T[n]
+- `#1113 <https://github.com/beehive-lab/TornadoVM/pull/1113>`_: [metal] Read a half numerically for getFloat32(), not as its bit pattern
+- `#1110 <https://github.com/beehive-lab/TornadoVM/pull/1110>`_: Add a cuDF library-task provider
+- `#1111 <https://github.com/beehive-lab/TornadoVM/pull/1111>`_: Feature/readme
+- `#1103 <https://github.com/beehive-lab/TornadoVM/pull/1103>`_: [metal] Let a converted half be read back as a value, not only stored (untested: needs a macOS run)
+- `#1094 <https://github.com/beehive-lab/TornadoVM/pull/1094>`_: [cuda] Support constant-index reads of an MMA accumulator fragment
+- `#1102 <https://github.com/beehive-lab/TornadoVM/pull/1102>`_: [opencl] Let a converted half be stored and read back as a value
+- `#1107 <https://github.com/beehive-lab/TornadoVM/pull/1107>`_: Make recover.bailout off by default
+- `#1109 <https://github.com/beehive-lab/TornadoVM/pull/1109>`_: [test] Register four unittest classes that tornado-test never ran
+- `#1101 <https://github.com/beehive-lab/TornadoVM/pull/1101>`_: [cuda] In-kernel reads of int32 MMA accumulator elements and byte-offset int8 fragment loads
+- `#1108 <https://github.com/beehive-lab/TornadoVM/pull/1108>`_: [cuda] Compile FP8 tile arithmetic through FP32
+- `#1099 <https://github.com/beehive-lab/TornadoVM/pull/1099>`_: [cuda] Reinterpret the bits a HalfFloat(short) carries, instead of converting them
+- `#1106 <https://github.com/beehive-lab/TornadoVM/pull/1106>`_: [ci] Stop pull requests queueing behind each other on the self-hosted runners
+- `#1093 <https://github.com/beehive-lab/TornadoVM/pull/1093>`_: [cuda] Include cuda_fp16.h for kernels whose only fp16 use is a shared half tile
+- `#1091 <https://github.com/beehive-lab/TornadoVM/pull/1091>`_: Fix signed integer conversion of unsigned intermediates
+- `#1083 <https://github.com/beehive-lab/TornadoVM/pull/1083>`_: [cuTile] Java CUDA Tile (cuTile) execution path to the CUDA backend as TileContext  API
+- `#1086 <https://github.com/beehive-lab/TornadoVM/pull/1086>`_: Fix CUDA_ERROR_LAUNCH_OUT_OF_RESOURCES on register-heavy 1D kernels
+- `#1085 <https://github.com/beehive-lab/TornadoVM/pull/1085>`_: Add a Method-based task API so kernels generated at run time can be used
+
+
 TornadoVM 6.1.0
 ---------------
 10/09/26

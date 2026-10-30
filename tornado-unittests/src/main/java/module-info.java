@@ -1,13 +1,20 @@
 open module tornado.unittests {
-    requires transitive junit;
+    requires transitive org.junit.jupiter.api;
+    requires org.junit.platform.launcher;
+    requires org.junit.platform.suite.api;
     requires transitive tornado.api;
+    requires tornado.runtime;
     requires tornado.cublas;
+    requires tornado.clblast;
     requires tornado.curand;
     requires tornado.cufft;
+    requires tornado.nccl;
     requires tornado.cudnn;
     requires tornado.cusparse;
+    requires tornado.cudf;
     requires tornado.cutlass;
-    requires lucene.core;
+    requires tornado.cuvs;
+    requires tornado.mlx;
     requires java.desktop;
     requires jdk.incubator.vector;
 
@@ -20,12 +27,16 @@ open module tornado.unittests {
     exports uk.ac.manchester.tornado.unittests.branching;
     exports uk.ac.manchester.tornado.unittests.common;
     exports uk.ac.manchester.tornado.unittests.cublas;
+    exports uk.ac.manchester.tornado.unittests.clblast;
     exports uk.ac.manchester.tornado.unittests.curand;
     exports uk.ac.manchester.tornado.unittests.nvtx;
     exports uk.ac.manchester.tornado.unittests.cufft;
     exports uk.ac.manchester.tornado.unittests.cudnn;
     exports uk.ac.manchester.tornado.unittests.cusparse;
+    exports uk.ac.manchester.tornado.unittests.cudf;
     exports uk.ac.manchester.tornado.unittests.cutlass;
+    exports uk.ac.manchester.tornado.unittests.cuvs;
+    exports uk.ac.manchester.tornado.unittests.mlx;
     exports uk.ac.manchester.tornado.unittests.fields;
     exports uk.ac.manchester.tornado.unittests.flatmap;
     exports uk.ac.manchester.tornado.unittests.fuzz;
@@ -51,4 +62,7 @@ open module tornado.unittests {
     exports uk.ac.manchester.tornado.unittests.vectortypes;
     exports uk.ac.manchester.tornado.unittests.virtualization;
     exports uk.ac.manchester.tornado.unittests.memory.leak;
+
+    provides uk.ac.manchester.tornado.runtime.library.spi.TornadoLibraryProvider with //
+            uk.ac.manchester.tornado.unittests.tasks.TestLibraryNativeBuffers.NativeBufferTestProvider;
 }

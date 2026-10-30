@@ -17,9 +17,9 @@
  */
 package uk.ac.manchester.tornado.unittests.kernelcontext.api;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import uk.ac.manchester.tornado.api.GridScheduler;
 import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
@@ -37,7 +37,7 @@ import uk.ac.manchester.tornado.api.types.arrays.IntArray;
 import uk.ac.manchester.tornado.unittests.common.TornadoTestBase;
 
 /**
- * Standalone reproducer for the GPULlama3 Flash-Attention kernel that fails to compile under the TornadoVM OpenCL backend.
+ * Standalone reproducer for the jitllm Flash-Attention kernel that fails to compile under the TornadoVM OpenCL backend.
  *
  * <p>
  * The kernel uses one work-group per attention head ({@code groupIdx == head}) and {@code localSize} cooperative threads per

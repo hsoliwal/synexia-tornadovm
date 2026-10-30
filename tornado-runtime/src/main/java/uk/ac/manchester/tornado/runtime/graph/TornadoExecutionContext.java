@@ -4,21 +4,18 @@
  *
  * Copyright (c) 2013-2024, APT Group, Department of Computer Science,
  * The University of Manchester. All rights reserved.
- * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
- * This code is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License version 2 only, as
- * published by the Free Software Foundation.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * This code is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
- * version 2 for more details (a copy is included in the LICENSE file that
- * accompanied this code).
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * You should have received a copy of the GNU General Public License version
- * 2 along with this work; if not, write to the Free Software Foundation,
- * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  *
  */
 package uk.ac.manchester.tornado.runtime.graph;
@@ -68,7 +65,7 @@ import uk.ac.manchester.tornado.runtime.tasks.meta.ScheduleContext;
 public class TornadoExecutionContext {
 
     public static int INIT_VALUE = -1;
-    private final int MAX_TASKS = 256;
+    private static final int INITIAL_TASK_CAPACITY = 256;
     private final int INITIAL_DEVICE_CAPACITY = 16;
     private final String name;
     private ScheduleContext meta;
@@ -99,6 +96,8 @@ public class TornadoExecutionContext {
     private boolean isExecutionGraphEnabled;
     private boolean isIntraPlanConcurrencyEnabled;
     private boolean isStagedTransfersEnabled;
+    /** CU_LIMIT_DEV_RUNTIME_PENDING_LAUNCH_COUNT requested with withCUDAPendingLaunchCount, 0 when unset. */
+    private int cudaPendingLaunchCount;
 
     public TornadoExecutionContext(String id) {
         name = id;
@@ -112,8 +111,8 @@ public class TornadoExecutionContext {
         objectState = new ArrayList<>();
         persistedTaskToObjectsMap =  new HashMap<>();
         devices = new ArrayList<>(INITIAL_DEVICE_CAPACITY);
-        kernelStackFrame = new KernelStackFrame[MAX_TASKS];
-        taskToDeviceMapTable = new TornadoXPUDevice[MAX_TASKS];
+        kernelStackFrame = new KernelStackFrame[INITIAL_TASK_CAPACITY];
+        taskToDeviceMapTable = new TornadoXPUDevice[INITIAL_TASK_CAPACITY];
         Arrays.fill(taskToDeviceMapTable, null);
         nextTask = 0;
         batchSize = INIT_VALUE;
@@ -131,6 +130,21 @@ public class TornadoExecutionContext {
 
     public KernelStackFrame[] getKernelStackFrame() {
         return kernelStackFrame;
+    }
+
+    /**
+     * Records an argument that is passed by value -- the Java object itself -- and never allocated
+     * on a device. Identity, not equality, decides whether it is already recorded, so two holders
+     * with equal contents stay two arguments.
+     */
+    public int insertConstant(Object parameter) {
+        for (int i = 0; i < constants.size(); i++) {
+            if (constants.get(i) == parameter) {
+                return i;
+            }
+        }
+        constants.add(parameter);
+        return constants.size() - 1;
     }
 
     public int insertVariable(Object parameter, Access access) {
@@ -286,8 +300,22 @@ public class TornadoExecutionContext {
         if (index == -1) {
             index = tasks.size();
             tasks.add(task);
+            ensureTaskCapacity(tasks.size());
         }
         return index;
+    }
+
+    /**
+     * Grows the per-task tables (kernel stack frames and the task-to-device map) to hold at least
+     * {@code taskCount} tasks. They are sized for the task list as it is built, before the
+     * interpreter takes a reference to the stack frames.
+     */
+    private void ensureTaskCapacity(int taskCount) {
+        if (taskCount > taskToDeviceMapTable.length) {
+            int capacity = Math.max(taskCount, 2 * taskToDeviceMapTable.length);
+            kernelStackFrame = Arrays.copyOf(kernelStackFrame, capacity);
+            taskToDeviceMapTable = Arrays.copyOf(taskToDeviceMapTable, capacity);
+        }
     }
 
     public void addPersistedObject(Object object) {
@@ -699,6 +727,7 @@ public class TornadoExecutionContext {
         newExecutionContext.isExecutionGraphEnabled = this.isExecutionGraphEnabled;
         newExecutionContext.isIntraPlanConcurrencyEnabled = this.isIntraPlanConcurrencyEnabled;
         newExecutionContext.isStagedTransfersEnabled = this.isStagedTransfersEnabled;
+        newExecutionContext.cudaPendingLaunchCount = this.cudaPendingLaunchCount;
 
         return newExecutionContext;
     }
@@ -750,6 +779,14 @@ public class TornadoExecutionContext {
 
     public boolean isStagedTransfersEnabled() {
         return this.isStagedTransfersEnabled;
+    }
+
+    public void setCUDAPendingLaunchCount(int count) {
+        this.cudaPendingLaunchCount = count;
+    }
+
+    public int getCUDAPendingLaunchCount() {
+        return this.cudaPendingLaunchCount;
     }
 
 }

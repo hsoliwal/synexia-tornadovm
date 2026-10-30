@@ -6,11 +6,11 @@
     <parent>
         <groupId>io.github.beehive-lab</groupId>
         <artifactId>tornado</artifactId>
-        <version>${revision}</version>
+        <version>8.0.0</version>
     </parent>
     <artifactId>tornado-cudnn</artifactId>
     <name>tornado-cudnn</name>
-    <description>TornadoVM cuDNN bindings: NVIDIA cuFFT library tasks for TornadoVM task graphs</description>
+    <description>TornadoVM cuDNN bindings: NVIDIA cuDNN library tasks for TornadoVM task graphs</description>
     <licenses>
         <license>
             <name>Apache 2</name>

@@ -5,19 +5,18 @@
  * Copyright (c) 2026, APT Group, Department of Computer Science,
  * The University of Manchester. All rights reserved.
  *
- * This code is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License version 2 only, as
- * published by the Free Software Foundation.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * This code is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
- * version 2 for more details (a copy is included in the LICENSE file that
- * accompanied this code).
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * You should have received a copy of the GNU General Public License version
- * 2 along with this work; if not, write to the Free Software Foundation,
- * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ *
  */
 package uk.ac.manchester.tornado.drivers.cuda.ffm;
 
@@ -63,7 +62,10 @@ public final class CUDADriverAPI {
     public static final int CUDA_ERROR_NOT_SUPPORTED = 801;
 
     /** CUctx_flags: yield the CPU while waiting for the GPU. */
+    public static final int CU_CTX_SCHED_AUTO = 0x00;
+    public static final int CU_CTX_SCHED_SPIN = 0x01;
     public static final int CU_CTX_SCHED_YIELD = 0x02;
+    public static final int CU_CTX_SCHED_BLOCKING_SYNC = 0x04;
 
     /** CUdevice_attribute values the backend queries. */
     public static final int CU_DEVICE_ATTRIBUTE_MAX_THREADS_PER_BLOCK = 1;
@@ -84,6 +86,14 @@ public final class CUDADriverAPI {
     public static final int CU_JIT_ERROR_LOG_BUFFER = 5;
     public static final int CU_JIT_ERROR_LOG_BUFFER_SIZE_BYTES = 6;
 
+    /** CUjitInputType values used when linking a relocatable image against the device runtime. */
+    public static final int CU_JIT_INPUT_CUBIN = 0;
+    public static final int CU_JIT_INPUT_PTX = 1;
+    public static final int CU_JIT_INPUT_LIBRARY = 4;
+
+    /** CUlimit: how many device-side launches may be outstanding before one fails. */
+    public static final int CU_LIMIT_DEV_RUNTIME_PENDING_LAUNCH_COUNT = 0x04;
+
     /** CUstreamCaptureStatus / CUstreamCaptureMode values used by the CUDA-graph path. */
     public static final int CU_STREAM_CAPTURE_STATUS_NONE = 0;
     public static final int CU_STREAM_CAPTURE_STATUS_ACTIVE = 1;
@@ -102,10 +112,11 @@ public final class CUDADriverAPI {
     private static final MethodHandle CU_DEVICE_TOTAL_MEM;
     private static final MethodHandle CU_DEVICE_GET_ATTRIBUTE;
 
-    private static final MethodHandle CU_CTX_CREATE;
-    private static final MethodHandle CU_CTX_DESTROY;
     private static final MethodHandle CU_CTX_SET_CURRENT;
     private static final MethodHandle CU_CTX_SYNCHRONIZE;
+    private static final MethodHandle CU_DEVICE_PRIMARY_CTX_RETAIN;
+    private static final MethodHandle CU_DEVICE_PRIMARY_CTX_RELEASE;
+    private static final MethodHandle CU_DEVICE_PRIMARY_CTX_SET_FLAGS;
 
     private static final MethodHandle CU_STREAM_CREATE;
     private static final MethodHandle CU_STREAM_DESTROY;
@@ -136,6 +147,13 @@ public final class CUDADriverAPI {
     private static final MethodHandle CU_LAUNCH_KERNEL;
     private static final MethodHandle CU_OCCUPANCY_MAX_POTENTIAL_BLOCK_SIZE;
 
+    private static final MethodHandle CU_LINK_CREATE;
+    private static final MethodHandle CU_LINK_ADD_DATA;
+    private static final MethodHandle CU_LINK_ADD_FILE;
+    private static final MethodHandle CU_LINK_COMPLETE;
+    private static final MethodHandle CU_LINK_DESTROY;
+    private static final MethodHandle CU_CTX_SET_LIMIT;
+
     private static final MethodHandle CU_STREAM_BEGIN_CAPTURE;
     private static final MethodHandle CU_STREAM_END_CAPTURE;
     private static final MethodHandle CU_STREAM_IS_CAPTURING;
@@ -156,10 +174,11 @@ public final class CUDADriverAPI {
             CU_DEVICE_GET_NAME = null;
             CU_DEVICE_TOTAL_MEM = null;
             CU_DEVICE_GET_ATTRIBUTE = null;
-            CU_CTX_CREATE = null;
-            CU_CTX_DESTROY = null;
             CU_CTX_SET_CURRENT = null;
             CU_CTX_SYNCHRONIZE = null;
+            CU_DEVICE_PRIMARY_CTX_RETAIN = null;
+            CU_DEVICE_PRIMARY_CTX_RELEASE = null;
+            CU_DEVICE_PRIMARY_CTX_SET_FLAGS = null;
             CU_STREAM_CREATE = null;
             CU_STREAM_DESTROY = null;
             CU_STREAM_SYNCHRONIZE = null;
@@ -185,6 +204,12 @@ public final class CUDADriverAPI {
             CU_MODULE_UNLOAD = null;
             CU_LAUNCH_KERNEL = null;
             CU_OCCUPANCY_MAX_POTENTIAL_BLOCK_SIZE = null;
+            CU_LINK_CREATE = null;
+            CU_LINK_ADD_DATA = null;
+            CU_LINK_ADD_FILE = null;
+            CU_LINK_COMPLETE = null;
+            CU_LINK_DESTROY = null;
+            CU_CTX_SET_LIMIT = null;
             CU_STREAM_BEGIN_CAPTURE = null;
             CU_STREAM_END_CAPTURE = null;
             CU_STREAM_IS_CAPTURING = null;
@@ -205,12 +230,11 @@ public final class CUDADriverAPI {
             CU_DEVICE_TOTAL_MEM = downcall(LIBCUDA, FunctionDescriptor.of(C_INT, C_POINTER, C_INT), "cuDeviceTotalMem_v2", "cuDeviceTotalMem");
             CU_DEVICE_GET_ATTRIBUTE = downcall(LIBCUDA, FunctionDescriptor.of(C_INT, C_POINTER, C_INT, C_INT), "cuDeviceGetAttribute");
 
-            // cuCtxCreate_v4 takes an extra CUctxCreateParams* in slot 2; the backend never uses
-            // execution affinity or CIG, so the _v2 shape is the one bound here.
-            CU_CTX_CREATE = downcall(LIBCUDA, FunctionDescriptor.of(C_INT, C_POINTER, C_INT, C_INT), "cuCtxCreate_v2", "cuCtxCreate");
-            CU_CTX_DESTROY = downcall(LIBCUDA, FunctionDescriptor.of(C_INT, C_LONG), "cuCtxDestroy_v2", "cuCtxDestroy");
             CU_CTX_SET_CURRENT = downcall(LIBCUDA, FunctionDescriptor.of(C_INT, C_LONG), "cuCtxSetCurrent");
             CU_CTX_SYNCHRONIZE = downcall(LIBCUDA, FunctionDescriptor.of(C_INT), "cuCtxSynchronize");
+            CU_DEVICE_PRIMARY_CTX_RETAIN = downcall(LIBCUDA, FunctionDescriptor.of(C_INT, C_POINTER, C_INT), "cuDevicePrimaryCtxRetain");
+            CU_DEVICE_PRIMARY_CTX_RELEASE = downcall(LIBCUDA, FunctionDescriptor.of(C_INT, C_INT), "cuDevicePrimaryCtxRelease_v2", "cuDevicePrimaryCtxRelease");
+            CU_DEVICE_PRIMARY_CTX_SET_FLAGS = downcall(LIBCUDA, FunctionDescriptor.of(C_INT, C_INT, C_INT), "cuDevicePrimaryCtxSetFlags_v2", "cuDevicePrimaryCtxSetFlags");
 
             CU_STREAM_CREATE = downcall(LIBCUDA, FunctionDescriptor.of(C_INT, C_POINTER, C_INT), "cuStreamCreate");
             CU_STREAM_DESTROY = downcall(LIBCUDA, FunctionDescriptor.of(C_INT, C_LONG), "cuStreamDestroy_v2", "cuStreamDestroy");
@@ -240,6 +264,15 @@ public final class CUDADriverAPI {
             CU_MODULE_UNLOAD = downcall(LIBCUDA, FunctionDescriptor.of(C_INT, C_LONG), "cuModuleUnload");
             CU_LAUNCH_KERNEL = downcall(LIBCUDA, FunctionDescriptor.of(C_INT, C_LONG, C_INT, C_INT, C_INT, C_INT, C_INT, C_INT, C_INT, C_LONG, C_POINTER, C_POINTER), "cuLaunchKernel");
             CU_OCCUPANCY_MAX_POTENTIAL_BLOCK_SIZE = downcall(LIBCUDA, FunctionDescriptor.of(C_INT, C_POINTER, C_POINTER, C_LONG, C_LONG, C_LONG, C_INT), "cuOccupancyMaxPotentialBlockSize");
+
+            // Linker, used only for modules that launch kernels from the device: their relocatable
+            // image has to be linked against libcudadevrt before it can be loaded.
+            CU_LINK_CREATE = downcall(LIBCUDA, FunctionDescriptor.of(C_INT, C_INT, C_POINTER, C_POINTER, C_POINTER), "cuLinkCreate_v2", "cuLinkCreate");
+            CU_LINK_ADD_DATA = downcall(LIBCUDA, FunctionDescriptor.of(C_INT, C_LONG, C_INT, C_POINTER, C_LONG, C_POINTER, C_INT, C_POINTER, C_POINTER), "cuLinkAddData_v2", "cuLinkAddData");
+            CU_LINK_ADD_FILE = downcall(LIBCUDA, FunctionDescriptor.of(C_INT, C_LONG, C_INT, C_POINTER, C_INT, C_POINTER, C_POINTER), "cuLinkAddFile_v2", "cuLinkAddFile");
+            CU_LINK_COMPLETE = downcall(LIBCUDA, FunctionDescriptor.of(C_INT, C_LONG, C_POINTER, C_POINTER), "cuLinkComplete");
+            CU_LINK_DESTROY = downcall(LIBCUDA, FunctionDescriptor.of(C_INT, C_LONG), "cuLinkDestroy");
+            CU_CTX_SET_LIMIT = downcall(LIBCUDA, FunctionDescriptor.of(C_INT, C_INT, C_LONG), "cuCtxSetLimit");
 
             CU_STREAM_BEGIN_CAPTURE = downcall(LIBCUDA, FunctionDescriptor.of(C_INT, C_LONG, C_INT), "cuStreamBeginCapture_v2", "cuStreamBeginCapture");
             CU_STREAM_END_CAPTURE = downcall(LIBCUDA, FunctionDescriptor.of(C_INT, C_LONG, C_POINTER), "cuStreamEndCapture");
@@ -342,22 +375,6 @@ public final class CUDADriverAPI {
         }
     }
 
-    public static int cuCtxCreate(MemorySegment context, int flags, int device) {
-        try {
-            return (int) CU_CTX_CREATE.invokeExact(context, flags, device);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
-    }
-
-    public static int cuCtxDestroy(long context) {
-        try {
-            return (int) CU_CTX_DESTROY.invokeExact(context);
-        } catch (Throwable t) {
-            throw rethrow(t);
-        }
-    }
-
     public static int cuCtxSetCurrent(long context) {
         try {
             return (int) CU_CTX_SET_CURRENT.invokeExact(context);
@@ -369,6 +386,30 @@ public final class CUDADriverAPI {
     public static int cuCtxSynchronize() {
         try {
             return (int) CU_CTX_SYNCHRONIZE.invokeExact();
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
+    }
+
+    public static int cuDevicePrimaryCtxRetain(MemorySegment context, int device) {
+        try {
+            return (int) CU_DEVICE_PRIMARY_CTX_RETAIN.invokeExact(context, device);
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
+    }
+
+    public static int cuDevicePrimaryCtxRelease(int device) {
+        try {
+            return (int) CU_DEVICE_PRIMARY_CTX_RELEASE.invokeExact(device);
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
+    }
+
+    public static int cuDevicePrimaryCtxSetFlags(int device, int flags) {
+        try {
+            return (int) CU_DEVICE_PRIMARY_CTX_SET_FLAGS.invokeExact(device, flags);
         } catch (Throwable t) {
             throw rethrow(t);
         }
@@ -537,6 +578,54 @@ public final class CUDADriverAPI {
     public static int cuModuleLoadDataEx(MemorySegment module, MemorySegment image, int numOptions, MemorySegment options, MemorySegment optionValues) {
         try {
             return (int) CU_MODULE_LOAD_DATA_EX.invokeExact(module, image, numOptions, options, optionValues);
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
+    }
+
+    public static int cuLinkCreate(int numOptions, MemorySegment options, MemorySegment optionValues, MemorySegment stateOut) {
+        try {
+            return (int) CU_LINK_CREATE.invokeExact(numOptions, options, optionValues, stateOut);
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
+    }
+
+    public static int cuLinkAddData(long state, int type, MemorySegment data, long size, MemorySegment name, int numOptions, MemorySegment options, MemorySegment optionValues) {
+        try {
+            return (int) CU_LINK_ADD_DATA.invokeExact(state, type, data, size, name, numOptions, options, optionValues);
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
+    }
+
+    public static int cuLinkAddFile(long state, int type, MemorySegment path, int numOptions, MemorySegment options, MemorySegment optionValues) {
+        try {
+            return (int) CU_LINK_ADD_FILE.invokeExact(state, type, path, numOptions, options, optionValues);
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
+    }
+
+    public static int cuLinkComplete(long state, MemorySegment cubinOut, MemorySegment sizeOut) {
+        try {
+            return (int) CU_LINK_COMPLETE.invokeExact(state, cubinOut, sizeOut);
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
+    }
+
+    public static int cuLinkDestroy(long state) {
+        try {
+            return (int) CU_LINK_DESTROY.invokeExact(state);
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
+    }
+
+    public static int cuCtxSetLimit(int limit, long value) {
+        try {
+            return (int) CU_CTX_SET_LIMIT.invokeExact(limit, value);
         } catch (Throwable t) {
             throw rethrow(t);
         }

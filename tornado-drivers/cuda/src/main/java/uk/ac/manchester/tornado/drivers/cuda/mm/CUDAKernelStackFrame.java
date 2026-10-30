@@ -4,21 +4,18 @@
  *
  * Copyright (c) 2022-2023 APT Group, Department of Computer Science,
  * The University of Manchester. All rights reserved.
- * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
- * This code is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License version 2 only, as
- * published by the Free Software Foundation.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * This code is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
- * version 2 for more details (a copy is included in the LICENSE file that
- * accompanied this code).
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * You should have received a copy of the GNU General Public License version
- * 2 along with this work; if not, write to the Free Software Foundation,
- * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  *
  */
 package uk.ac.manchester.tornado.drivers.cuda.mm;
@@ -46,7 +43,13 @@ import uk.ac.manchester.tornado.runtime.common.KernelStackFrame;
 public class CUDAKernelStackFrame extends CUDAByteBuffer implements KernelStackFrame {
 
     public static final int RETURN_VALUE_INDEX = 0;
-    public static final int RESERVED_SLOTS = 3;
+    /**
+     * Set (1) when --threadInfo is on, so that kernels launched from the device report their grids.
+     * Read on the device as {@code _kernel_context[DEVICE_LAUNCH_INFO_INDEX]}; a runtime flag rather
+     * than a compile-time one, so toggling thread info on a plan needs no recompilation.
+     */
+    public static final int DEVICE_LAUNCH_INFO_INDEX = 3;
+    public static final int RESERVED_SLOTS = 4;
     private static final int FRAME_BYTES = RESERVED_SLOTS << 3;
     private static final long HOST_BUFFER_ALIGNMENT = 64;
 
@@ -74,12 +77,12 @@ public class CUDAKernelStackFrame extends CUDAByteBuffer implements KernelStackF
         super(device, bufferId, 0, FRAME_BYTES);
         this.callArguments = new ArrayList<>(numArgs);
         CUDAContext platformContext = device.getPlatformContext();
-        this.hostPointer = platformContext.allocateOffHeapMemory(FRAME_BYTES, HOST_BUFFER_ALIGNMENT);
+        // pinned for asynchronous uploads; the buffer of a freed frame is reused (see acquirePinnedFrame)
+        this.hostPointer = platformContext.acquirePinnedFrame(FRAME_BYTES, HOST_BUFFER_ALIGNMENT);
         if (hostPointer != 0) {
             ByteBuffer direct = platformContext.asByteBuffer(hostPointer, FRAME_BYTES);
             direct.order(device.getByteOrder());
             buffer = direct;
-            platformContext.registerPinnedMemory(hostPointer, FRAME_BYTES);
         }
         buffer.clear();
         this.isValid = true;
@@ -105,13 +108,11 @@ public class CUDAKernelStackFrame extends CUDAByteBuffer implements KernelStackF
         isValid = false;
         deviceSlotsValid = false;
         if (hostPointer != 0) {
-            // Unregister (native side synchronises the context first) BEFORE freeing, so
-            // no stale pin can survive the host buffer.
-            deviceContext.getPlatformContext().unregisterPinnedMemory(hostPointer);
-            deviceContext.getPlatformContext().freeOffHeapMemory(hostPointer);
+            // the pinned buffer goes back to the context for the next frame, still pinned
+            deviceContext.getPlatformContext().releasePinnedFrame(hostPointer, FRAME_BYTES, deviceContext.getDeviceIndex());
             hostPointer = 0;
         }
-        deviceContext.getPlatformContext().releaseBuffer(toBuffer());
+        deviceContext.getPlatformContext().releaseBuffer(deviceContext.getDeviceIndex(), toBuffer());
     }
 
     /**
@@ -171,6 +172,10 @@ public class CUDAKernelStackFrame extends CUDAByteBuffer implements KernelStackF
     @Override
     public List<CallArgument> getCallArguments() {
         return callArguments;
+    }
+
+    public void setDeviceLaunchInfo(boolean enabled) {
+        buffer.putLong(DEVICE_LAUNCH_INFO_INDEX << 3, enabled ? 1L : 0L);
     }
 
     @Override

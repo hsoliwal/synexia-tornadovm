@@ -4,14 +4,80 @@ Hybrid API: Native Library Tasks
 ================================
 
 The hybrid API lets a :code:`TaskGraph` mix JIT-compiled Java tasks with calls
-into vendor-optimized native libraries (e.g., NVIDIA cuBLAS, cuFFT, cuDNN).
+into vendor-optimized native libraries (e.g., NVIDIA cuBLAS, cuFFT, cuDNN,
+RAPIDS cuDF, and CLBlast on OpenCL).
 Library tasks share TornadoVM-managed device buffers with regular tasks, so
 data produced by a JIT kernel can feed a library call (and vice versa)
 without extra copies or special memory management, and everything runs on
-the **same CUDA stream** — no host synchronization is introduced between a
+the **same native stream or command queue** — no host synchronization is introduced between a
 JIT task and a library call.
 
-Requires the CUDA backend: :code:`make BACKEND=cuda` (see :ref:`build-from-source`).
+The NVIDIA libraries require the CUDA backend: :code:`make BACKEND=cuda`.
+CLBlast requires the OpenCL backend: :code:`make BACKEND=opencl`
+(see :ref:`build-from-source`).
+
+Example: CLBlast (OpenCL dense linear algebra)
+---------------------------------------------
+
+The ``tornado-clblast`` module provides ``CLBlast.sgemm``, ``dgemm``,
+``sgemv``, ``dgemv``, ``saxpy``, ``daxpy``, ``sdot`` and ``ddot``.
+Install the CLBlast shared library separately and make it discoverable by the
+native loader (``PATH`` on Windows, ``LD_LIBRARY_PATH`` on Linux, or
+``DYLD_LIBRARY_PATH`` on macOS), or place it on ``java.library.path``.
+CLBlast is loaded only when a CLBlast task is used; other OpenCL tasks do not
+require it. The OpenCL SDK includes the Java binding module automatically.
+
+.. code:: java
+
+   import uk.ac.manchester.tornado.clblast.CLBlast;
+   import uk.ac.manchester.tornado.clblast.enums.CLBlastLayout;
+   import uk.ac.manchester.tornado.clblast.enums.CLBlastTranspose;
+
+   // Row-major A[m*k], B[k*n], C[m*n]: C = A * B.
+   TaskGraph graph = new TaskGraph("clblast")
+       .transferToDevice(DataTransferMode.EVERY_EXECUTION, a, b)
+       .libraryTask("gemm", CLBlast::sgemm,
+           CLBlastLayout.ROW_MAJOR.value(),
+           CLBlastTranspose.NO.value(), CLBlastTranspose.NO.value(),
+           m, n, k, 1.0f, a, k, b, n, 0.0f, c, n)
+       .transferToHost(DataTransferMode.EVERY_EXECUTION, c);
+
+Both row-major and column-major storage are supported. Leading dimensions and
+vector increments are measured in elements; increments must be positive.
+TornadoVM passes the original ``cl_mem`` buffers with element offsets that
+skip native array headers. Results of DOT remain in a device array and can
+feed another library task or JIT kernel directly.
+
+For GEMM/GEMV with non-zero ``beta``, the output is marked ``READ_WRITE``;
+include it in ``transferToDevice`` when its initial values come from the host.
+AXPY also reads its output. CLBlast uses the execution plan's command queue
+on the calling thread and requires in-order execution
+(``tornado.ooo-execution.enable=false``, the default). FP64 routines require
+device support for double precision. Batch processing with ``withBatch`` is
+not supported for library tasks.
+
+The bindings follow the `CLBlast C API
+<https://github.com/CNugteren/CLBlast/blob/master/include/clblast_c.h>`__.
+Run the OpenCL integration tests with:
+
+.. code:: bash
+
+   tornado-test -V uk.ac.manchester.tornado.unittests.clblast.TestCLBlast
+
+The integration suite covers both small layout/stride cases and larger
+execution paths: padded 301-by-257-by-513 GEMM across both layouts and all four
+transpose combinations, beta-zero output initialised to NaN, ordering between
+a slow JIT producer and GEMM across sequential host threads, device buffers
+shared between task graphs, and repeated 2048-by-2048 GEMM with deferred
+readback. Large products are checked against CPU references accumulated in
+double precision; the 2048 case checks complete boundary and interior rows.
+These are correctness tests, with no timing thresholds or performance claims.
+
+The binding and provider tests require no GPU or CLBlast installation:
+
+.. code:: bash
+
+   mvn -Pjdk21 -pl tornado-clblast -am test -DskipTests=false -Dtest=CLBlastTest,CLBlastBindingsTest -Dsurefire.failIfNoSpecifiedTests=false
 
 Example: cuBLAS (dense linear algebra)
 ---------------------------------------
@@ -81,6 +147,79 @@ buffers, and cross-validates the results:
 ``cuDNN`` also exposes ``cudnnSoftmax``, ``cudnnRelu``/``cudnnSigmoid``/``cudnnTanh``,
 ``cudnnMaxPool2d``, and fused FP16 scaled-dot-product (flash) attention via
 ``sdpaForward`` — see the full provider catalog linked below.
+
+Example: cuDF (relational primitives)
+--------------------------------------------
+
+``cuDF`` binds the operations that need cross-row cooperation, which is what no
+``@Parallel`` loop expresses: ``sortedOrder`` and ``sortedOrderMulti`` (stable
+sorts returning the permutation, the second over several keys in either
+direction), ``groupSum`` and ``groupAggregate`` (the second taking
+``SUM``/``MIN``/``MAX``/``MEAN``/``COUNT`` over several value columns in one
+pass), ``reduce`` (one aggregation over a whole column), ``runningSum``
+(inclusive scan), ``innerJoin`` (returning matched index pairs) and
+``selectedIndices`` (stream compaction, returning the surviving positions). The
+per-row work around them is exactly what TornadoVM compiles well, so the two
+halves belong in one graph:
+
+.. code:: java
+
+   TaskGraph cudfGraph = new TaskGraph("cudf")
+       .transferToDevice(DataTransferMode.EVERY_EXECUTION, keys, values)
+       .task("scale", MyKernels::scale, values, scaled)                // JIT-compiled kernel
+       .libraryTask("agg", Cudf::groupSum,                             // native cuDF call
+               n, keys, scaled, outKeys, outSums, outGroups)
+       .transferToHost(DataTransferMode.EVERY_EXECUTION, outKeys, outSums, outGroups);
+
+``scaled`` is never copied to the host: the generated kernel writes it and the
+group-by reads it, on the same device buffer and the same stream. The reverse
+direction composes too — a kernel can consume what a library task produced,
+which is how an ``ORDER BY`` is assembled from ``sortedOrder`` plus a gather:
+
+.. code:: java
+
+   TaskGraph orderGraph = new TaskGraph("order")
+       .transferToDevice(DataTransferMode.EVERY_EXECUTION, keys, values)
+       .libraryTask("order", Cudf::sortedOrder, n, keys, order)        // cuDF permutation
+       .task("gather", MyKernels::gather, order, values, sorted)       // JIT-compiled gather
+       .transferToHost(DataTransferMode.EVERY_EXECUTION, sorted);
+
+Only the key column crosses to the device for the ordering, so the payload may
+carry types no kernel could express. ``outGroups`` element 0 receives the number
+of groups the aggregate actually produced, which the caller cannot know in
+advance; ``innerJoin`` and ``selectedIndices`` report their counts the same way
+and fail rather than truncating when the result exceeds the ``capacity`` they
+were given.
+
+Filtering splits the same way, and is the clearest case for the whole
+arrangement: a generated kernel computes the predicate a row at a time, and the
+compaction that follows is cross-row and has nowhere else to go.
+
+.. code:: java
+
+   TaskGraph filterGraph = new TaskGraph("filter")
+       .transferToDevice(DataTransferMode.EVERY_EXECUTION, values)
+       .task("predicate", MyKernels::positive, values, mask)          // JIT-compiled kernel
+       .libraryTask("filter", Cudf::selectedIndices,                  // native cuDF call
+               n, n, mask, indices, count)
+       .transferToHost(DataTransferMode.EVERY_EXECUTION, indices, count);
+
+``groupAggregate`` and ``sortedOrderMulti`` pack their columns with a stride of
+``n``, so column *c* starts at element ``c * n``; ``groupAggregate`` writes its
+results the same way, and bit *c* of ``sortedOrderMulti``'s mask makes column
+*c* descending. Aggregations are named by :code:`CudfAggregation`.
+
+Operands are dense and non-null: keys are ``INT32``, values ``FP64``, sorting is
+ascending over a single key column, and no column carries a validity mask.
+Widening any of those is more entry points rather than a different design.
+
+.. code:: bash
+
+   tornado-test -V uk.ac.manchester.tornado.unittests.cudf.TestCudf
+
+Unlike the other providers, cuDF needs RAPIDS ``libcudf`` rather than a CUDA
+Toolkit component — see ``tornado-cudf/README.md`` for the install recipe. Without
+it the module loads, reports itself unavailable, and the tests skip.
 
 Performance
 -----------
@@ -154,29 +293,35 @@ a new library requires **no changes to the core runtime**:
    directly.
 
 Backends expose their native stream to providers through
-:code:`TornadoNativeStreamSupport` (implemented by the CUDA backend). Provider
+:code:`TornadoNativeStreamSupport` (implemented by the CUDA, Metal and OpenCL backends). Provider
 :code:`canHandle(device)` rejects devices without native-stream interop.
 
 Scope and roadmap
 -----------------
 
-Implemented today, via the same provider SPI: **cuBLAS** and **cuBLASLt**
+Implemented today, via the same provider SPI: **CLBlast** (OpenCL dense linear
+algebra), **cuBLAS** and **cuBLASLt**
 (dense linear algebra, fused-epilogue GEMM), **cuFFT** (FFTs), **cuDNN**
 (deep-learning primitives, including fused FP16 flash attention), **cuSPARSE**
-(CSR SpMV/SpMM), and **CUTLASS** (open-template FP32/FP16/BF16 GEMM with fused
-epilogues), each a ``tornado-<lib>`` API module with per-(plan, device)
+(CSR SpMV/SpMM), **CUTLASS** (open-template FP32/FP16/BF16 GEMM with fused
+epilogues), and **cuDF** (relational primitives: ordering,
+grouped aggregation, whole-column reduction, inclusive scan, inner join and
+stream compaction), each a ``tornado-<lib>`` API module with per-(plan, device)
 contexts for cached descriptors and plans. cuBLAS, cuBLASLt, cuFFT and
 cuSPARSE bind their native calls directly through ``java.lang.foreign`` —
 no native module, nothing gated behind the ``cuda-backend`` Maven profile
 beyond the module itself. cuDNN keeps a small native module
-(``cudnn-jni``) for the cudnn-frontend C++ SDPA shim, and CUTLASS
-(``cutlass-jni``) compiles device code with ``nvcc``, so both still need a
-C++ toolchain. Either way it is self-guarding — if the library/toolkit
+(``cudnn-jni``) for the cudnn-frontend C++ SDPA shim, CUTLASS
+(``cutlass-jni``) compiles device code with ``nvcc``, and cuDF
+(``cudf-jni``) carries an ``extern "C"`` shim because libcudf is C++ and
+returns ``std::unique_ptr`` by value, so those three still need a C++
+toolchain. Either way it is self-guarding — if the library/toolkit
 isn't installed, the ``SymbolLookup`` (or the native build) comes back
 empty and that provider reports ``UNSUPPORTED`` at runtime rather than
 failing the build. Some libraries need an extra runtime dependency (e.g.,
 cuDNN needs ``libcudnn9``); see the full guide linked below for per-library
-install requirements.
+install requirements, and cuDF needs RAPIDS ``libcudf``, which is not a CUDA
+Toolkit component.
 
 When :code:`beta != 0` in a cuBLAS GEMM/GEMV call, the output operand is also
 read; the binding marks it ``READ_WRITE`` automatically (include it in

@@ -4,28 +4,25 @@
  *
  * Copyright (c) 2026, APT Group, Department of Computer Science,
  * School of Engineering, The University of Manchester. All rights reserved.
- * DO NOT ALTER OR REMOVE COPYRIGHT NOTICES OR THIS FILE HEADER.
  *
- * This code is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License version 2 only, as
- * published by the Free Software Foundation.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
  *
- * This code is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License
- * version 2 for more details (a copy is included in the LICENSE file that
- * accompanied this code).
+ * http://www.apache.org/licenses/LICENSE-2.0
  *
- * You should have received a copy of the GNU General Public License version
- * 2 along with this work; if not, write to the Free Software Foundation,
- * Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA.
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
  *
  */
 package uk.ac.manchester.tornado.unittests.streams;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import uk.ac.manchester.tornado.api.ImmutableTaskGraph;
 import uk.ac.manchester.tornado.api.TaskGraph;
@@ -393,7 +390,7 @@ public class TestStreamsPerformance extends TornadoTestBase {
     public void testFirstExecutionUpload() throws TornadoExecutionPlanException {
         assertNotBackend(TornadoVMBackendType.OPENCL);
 
-        // GPULlama-like shape: the model's weights are many separate read-only tensors, each
+        // jitllm-like shape: the model's weights are many separate read-only tensors, each
         // uploaded once on first execution (the direct path pays one cuMemHostRegister per tensor).
         final int layers = 8;
         final int layerSize = 128 * 1024 * 1024 / 4; // 128 MB per tensor -> 1 GB total
@@ -407,7 +404,7 @@ public class TestStreamsPerformance extends TornadoTestBase {
         // cold=true leaves the weight pages untouched (zero-fill-on-demand): the upload is then the
         // FIRST touch, so both modes additionally pay the page faults - serially inside
         // cuMemHostRegister on the direct path, inside the (parallel, DMA-overlapped) fill on the
-        // staged path. This models the mmap'd-weights case (GPULlama) minus the disk read.
+        // staged path. This models the mmap'd-weights case (jitllm) minus the disk read.
         final boolean cold = Boolean.getBoolean("tornado.test.upload.cold");
 
         FloatArray[] weights = new FloatArray[layers];

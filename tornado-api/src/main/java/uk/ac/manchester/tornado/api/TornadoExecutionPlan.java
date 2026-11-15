@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2013-2024, APT Group, Department of Computer Science,
  * The University of Manchester.
+ * Modifications copyright (c) 2026, Hitesh Soliwal and contributors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -352,6 +353,7 @@ public sealed class TornadoExecutionPlan implements AutoCloseable permits Execut
      * @since 8.0.1
      */
     public TornadoExecutionPlan unbindCUDADeviceBuffer(TornadoNativeArray view) {
+        tornadoExecutor.requireDeviceExecution("CUDA device-buffer unbinding");
         Objects.requireNonNull(view, "view");
         if (!view.isCUDADeviceView()) {
             throw new IllegalArgumentException("This array is not a device view, so it has no external binding to release");

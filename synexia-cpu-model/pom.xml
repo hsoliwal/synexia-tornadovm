@@ -6,7 +6,7 @@
     <parent>
         <groupId>io.github.beehive-lab</groupId>
         <artifactId>tornado</artifactId>
-        <version>${revision}</version>
+        <version>8.1.0</version>
     </parent>
 
     <artifactId>synexia-cpu-model</artifactId>
@@ -22,6 +22,7 @@
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
+            <version>4.13.2</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

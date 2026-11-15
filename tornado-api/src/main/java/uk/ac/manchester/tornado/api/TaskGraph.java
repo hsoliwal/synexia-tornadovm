@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2013-2024, APT Group, Department of Computer Science,
  * The University of Manchester.
+ * Modifications copyright (c) 2026, Hitesh Soliwal and contributors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -97,6 +98,42 @@ public class TaskGraph implements TaskGraphInterface {
         this.taskGraphName = name;
         taskGraphImpl = TornadoAPIProvider.loadScheduleRuntime(name);
         taskNames = new HashSet<>();
+    }
+
+    /**
+     * Creates a task graph that executes ordinary Java tasks synchronously on the
+     * calling thread, using only {@code tornado-api}. No runtime, compiler or device
+     * provider is loaded. Tasks and task graphs execute in their registration order;
+     * a {@code @Parallel} loop retains its ordinary Java loop semantics.
+     *
+     * <p>Task argument bindings are captured when each task is added. Snapshots retain
+     * their own task sequence while sharing the actual payload objects with the
+     * caller. Results are therefore visible directly in those objects. This is host
+     * memory execution, not an emulation of device storage: every device-transfer,
+     * persistence and unified-memory directive is refused. Prebuilt kernels,
+     * native-library tasks, device-context arguments, device-only array views and device scheduling options
+     * are also refused. Tasks must be ordinary Java computations, without device
+     * intrinsics hidden inside their bodies or captured state.
+     *
+     * <p>Use the usual {@link #snapshot()} and {@link TornadoExecutionPlan} APIs to
+     * execute the graph. A plan may contain multiple host graphs; mixing host and
+     * device graphs in one plan is not supported. Kernel failures propagate to the
+     * caller and stop subsequent tasks. Execution does not roll back prior mutations.
+     * Warm-up by iteration count has the same calling-thread semantics; timed warm-up
+     * is not supported for host graphs.
+     *
+     * @param name
+     *     non-null, non-blank task-graph name
+     * @return a host task graph
+     */
+    public static TaskGraph host(String name) {
+        return new TaskGraph(name, new HostTaskGraph(name));
+    }
+
+    private TaskGraph(String name, TornadoTaskGraphInterface implementation) {
+        this.taskGraphName = name;
+        this.taskGraphImpl = implementation;
+        this.taskNames = new HashSet<>();
     }
 
     /**
@@ -780,49 +817,49 @@ public class TaskGraph implements TaskGraphInterface {
      */
     @Override
     public <T1> TaskGraph libraryTask(String id, LibraryTask1<T1> code, T1 arg1) {
-        checkTaskName(id);
+        checkLibraryTaskName(id);
         taskGraphImpl.addLibraryTask(id, code.apply(arg1));
         return this;
     }
 
     @Override
     public <T1, T2> TaskGraph libraryTask(String id, LibraryTask2<T1, T2> code, T1 arg1, T2 arg2) {
-        checkTaskName(id);
+        checkLibraryTaskName(id);
         taskGraphImpl.addLibraryTask(id, code.apply(arg1, arg2));
         return this;
     }
 
     @Override
     public <T1, T2, T3> TaskGraph libraryTask(String id, LibraryTask3<T1, T2, T3> code, T1 arg1, T2 arg2, T3 arg3) {
-        checkTaskName(id);
+        checkLibraryTaskName(id);
         taskGraphImpl.addLibraryTask(id, code.apply(arg1, arg2, arg3));
         return this;
     }
 
     @Override
     public <T1, T2, T3, T4> TaskGraph libraryTask(String id, LibraryTask4<T1, T2, T3, T4> code, T1 arg1, T2 arg2, T3 arg3, T4 arg4) {
-        checkTaskName(id);
+        checkLibraryTaskName(id);
         taskGraphImpl.addLibraryTask(id, code.apply(arg1, arg2, arg3, arg4));
         return this;
     }
 
     @Override
     public <T1, T2, T3, T4, T5> TaskGraph libraryTask(String id, LibraryTask5<T1, T2, T3, T4, T5> code, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5) {
-        checkTaskName(id);
+        checkLibraryTaskName(id);
         taskGraphImpl.addLibraryTask(id, code.apply(arg1, arg2, arg3, arg4, arg5));
         return this;
     }
 
     @Override
     public <T1, T2, T3, T4, T5, T6> TaskGraph libraryTask(String id, LibraryTask6<T1, T2, T3, T4, T5, T6> code, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6) {
-        checkTaskName(id);
+        checkLibraryTaskName(id);
         taskGraphImpl.addLibraryTask(id, code.apply(arg1, arg2, arg3, arg4, arg5, arg6));
         return this;
     }
 
     @Override
     public <T1, T2, T3, T4, T5, T6, T7> TaskGraph libraryTask(String id, LibraryTask7<T1, T2, T3, T4, T5, T6, T7> code, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7) {
-        checkTaskName(id);
+        checkLibraryTaskName(id);
         taskGraphImpl.addLibraryTask(id, code.apply(arg1, arg2, arg3, arg4, arg5, arg6, arg7));
         return this;
     }
@@ -830,7 +867,7 @@ public class TaskGraph implements TaskGraphInterface {
     @Override
     public <T1, T2, T3, T4, T5, T6, T7, T8> TaskGraph libraryTask(String id, LibraryTask8<T1, T2, T3, T4, T5, T6, T7, T8> code, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7,
             T8 arg8) {
-        checkTaskName(id);
+        checkLibraryTaskName(id);
         taskGraphImpl.addLibraryTask(id, code.apply(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8));
         return this;
     }
@@ -838,7 +875,7 @@ public class TaskGraph implements TaskGraphInterface {
     @Override
     public <T1, T2, T3, T4, T5, T6, T7, T8, T9> TaskGraph libraryTask(String id, LibraryTask9<T1, T2, T3, T4, T5, T6, T7, T8, T9> code, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7,
             T8 arg8, T9 arg9) {
-        checkTaskName(id);
+        checkLibraryTaskName(id);
         taskGraphImpl.addLibraryTask(id, code.apply(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9));
         return this;
     }
@@ -846,7 +883,7 @@ public class TaskGraph implements TaskGraphInterface {
     @Override
     public <T1, T2, T3, T4, T5, T6, T7, T8, T9, T10> TaskGraph libraryTask(String id, LibraryTask10<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10> code, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5,
             T6 arg6, T7 arg7, T8 arg8, T9 arg9, T10 arg10) {
-        checkTaskName(id);
+        checkLibraryTaskName(id);
         taskGraphImpl.addLibraryTask(id, code.apply(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10));
         return this;
     }
@@ -854,7 +891,7 @@ public class TaskGraph implements TaskGraphInterface {
     @Override
     public <T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11> TaskGraph libraryTask(String id, LibraryTask11<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11> code, T1 arg1, T2 arg2, T3 arg3, T4 arg4,
             T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, T10 arg10, T11 arg11) {
-        checkTaskName(id);
+        checkLibraryTaskName(id);
         taskGraphImpl.addLibraryTask(id, code.apply(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11));
         return this;
     }
@@ -862,7 +899,7 @@ public class TaskGraph implements TaskGraphInterface {
     @Override
     public <T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12> TaskGraph libraryTask(String id, LibraryTask12<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12> code, T1 arg1, T2 arg2, T3 arg3,
             T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, T10 arg10, T11 arg11, T12 arg12) {
-        checkTaskName(id);
+        checkLibraryTaskName(id);
         taskGraphImpl.addLibraryTask(id, code.apply(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12));
         return this;
     }
@@ -870,7 +907,7 @@ public class TaskGraph implements TaskGraphInterface {
     @Override
     public <T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13> TaskGraph libraryTask(String id, LibraryTask13<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13> code, T1 arg1, T2 arg2,
             T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, T10 arg10, T11 arg11, T12 arg12, T13 arg13) {
-        checkTaskName(id);
+        checkLibraryTaskName(id);
         taskGraphImpl.addLibraryTask(id, code.apply(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13));
         return this;
     }
@@ -878,7 +915,7 @@ public class TaskGraph implements TaskGraphInterface {
     @Override
     public <T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14> TaskGraph libraryTask(String id, LibraryTask14<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14> code, T1 arg1,
             T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, T10 arg10, T11 arg11, T12 arg12, T13 arg13, T14 arg14) {
-        checkTaskName(id);
+        checkLibraryTaskName(id);
         taskGraphImpl.addLibraryTask(id, code.apply(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14));
         return this;
     }
@@ -886,7 +923,7 @@ public class TaskGraph implements TaskGraphInterface {
     @Override
     public <T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15> TaskGraph libraryTask(String id, LibraryTask15<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15> code,
             T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, T10 arg10, T11 arg11, T12 arg12, T13 arg13, T14 arg14, T15 arg15) {
-        checkTaskName(id);
+        checkLibraryTaskName(id);
         taskGraphImpl.addLibraryTask(id, code.apply(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15));
         return this;
     }
@@ -895,7 +932,7 @@ public class TaskGraph implements TaskGraphInterface {
     public <T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16> TaskGraph libraryTask(String id,
             LibraryTask16<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16> code, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, T10 arg10,
             T11 arg11, T12 arg12, T13 arg13, T14 arg14, T15 arg15, T16 arg16) {
-        checkTaskName(id);
+        checkLibraryTaskName(id);
         taskGraphImpl.addLibraryTask(id, code.apply(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16));
         return this;
     }
@@ -904,7 +941,7 @@ public class TaskGraph implements TaskGraphInterface {
     public <T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17> TaskGraph libraryTask(String id,
             LibraryTask17<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17> code, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9, T10 arg10,
             T11 arg11, T12 arg12, T13 arg13, T14 arg14, T15 arg15, T16 arg16, T17 arg17) {
-        checkTaskName(id);
+        checkLibraryTaskName(id);
         taskGraphImpl.addLibraryTask(id, code.apply(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17));
         return this;
     }
@@ -913,7 +950,7 @@ public class TaskGraph implements TaskGraphInterface {
     public <T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18> TaskGraph libraryTask(String id,
             LibraryTask18<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18> code, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9,
             T10 arg10, T11 arg11, T12 arg12, T13 arg13, T14 arg14, T15 arg15, T16 arg16, T17 arg17, T18 arg18) {
-        checkTaskName(id);
+        checkLibraryTaskName(id);
         taskGraphImpl.addLibraryTask(id, code.apply(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18));
         return this;
     }
@@ -922,7 +959,7 @@ public class TaskGraph implements TaskGraphInterface {
     public <T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19> TaskGraph libraryTask(String id,
             LibraryTask19<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19> code, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8, T9 arg9,
             T10 arg10, T11 arg11, T12 arg12, T13 arg13, T14 arg14, T15 arg15, T16 arg16, T17 arg17, T18 arg18, T19 arg19) {
-        checkTaskName(id);
+        checkLibraryTaskName(id);
         taskGraphImpl.addLibraryTask(id, code.apply(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18, arg19));
         return this;
     }
@@ -931,7 +968,7 @@ public class TaskGraph implements TaskGraphInterface {
     public <T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20> TaskGraph libraryTask(String id,
             LibraryTask20<T1, T2, T3, T4, T5, T6, T7, T8, T9, T10, T11, T12, T13, T14, T15, T16, T17, T18, T19, T20> code, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7, T8 arg8,
             T9 arg9, T10 arg10, T11 arg11, T12 arg12, T13 arg13, T14 arg14, T15 arg15, T16 arg16, T17 arg17, T18 arg18, T19 arg19, T20 arg20) {
-        checkTaskName(id);
+        checkLibraryTaskName(id);
         taskGraphImpl.addLibraryTask(id, code.apply(arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, arg11, arg12, arg13, arg14, arg15, arg16, arg17, arg18, arg19, arg20));
         return this;
     }
@@ -1092,6 +1129,11 @@ public class TaskGraph implements TaskGraphInterface {
      */
     @Override
     public ImmutableTaskGraph snapshot() {
+        if (taskGraphImpl instanceof HostTaskGraph) {
+            TaskGraph hostSnapshot = new TaskGraph(taskGraphName, taskGraphImpl.createImmutableTaskGraph());
+            hostSnapshot.taskNames = new HashSet<>(taskNames);
+            return new ImmutableTaskGraph(hostSnapshot);
+        }
         TaskGraph cloneTaskGraph = new TaskGraph(this.getTaskGraphName());
         cloneTaskGraph.taskGraphImpl = this.taskGraphImpl.createImmutableTaskGraph();
         cloneTaskGraph.taskNames = this.taskNames;
@@ -1103,10 +1145,22 @@ public class TaskGraph implements TaskGraphInterface {
     }
 
     private void checkTaskName(String id) {
+        if (taskGraphImpl instanceof HostTaskGraph) {
+            // Host registration validates the task and claims its name together. A
+            // rejected task must not reserve a name in this builder first.
+            return;
+        }
         if (taskNames.contains(id)) {
             throw new TornadoTaskRuntimeException(ERROR_TASK_NAME_DUPLICATION);
         }
         taskNames.add(id);
+    }
+
+    private void checkLibraryTaskName(String id) {
+        if (taskGraphImpl instanceof HostTaskGraph) {
+            throw HostTaskGraph.unsupported("native-library tasks");
+        }
+        checkTaskName(id);
     }
 
     void withDevice(TornadoDevice device) {

@@ -6,7 +6,9 @@ M3 is based on the idea that shared immutable structure and indexed metadata can
 provide a basis for reusable computation. The programme starts with M3 String,
 regex, and precompute in M3JDK21, then collections and SWT/Eclipse integration.
 
-This TornadoVM fork is an exploration surface for suitable accelerated precompute. M3 remains CPU-first; preparation, transfer, synchronization, and memory costs determine where acceleration is useful.
+This TornadoVM fork is the source fork for M3JDK21’s parallel task API. M3JDK21 owns the delivered SDK and runtime; Synexia owns the canonical transformation recipes and their execution evidence. The API retains its existing Tornado module and package identities. M3 remains CPU-first; preparation, transfer, synchronization, and memory costs determine where acceleration is useful.
+
+**Use the parallel API:** [Host execution and runtime compatibility](docs/PARALLEL_API.md) documents `TaskGraph.host(name)`, which executes ordinary Java tasks through the existing task graph and execution-plan API using the API module alone.
 
 **Try the fork additions:** [RISC-V engine guide and CPU-oracle cheat sheet](docs/fork-experiments.md) compares the two engines and walks through a small plain-Java guest program.
 
@@ -35,7 +37,7 @@ making compatibility or speed claims.
 ## Fork quickstart: choose the question you want to answer
 
 TornadoVM supplies Java-to-device compilation, task graphs and backend execution.
-This fork adds source-navigation guides and M3 CPU-model experiments. Its checked-in
+This fork supplies M3JDK21’s parallel API, explicit API-only host execution, source-navigation guides, and M3 CPU-model experiments. Its checked-in
 [independent RV32IM engine](m3/cpu-gpu/README.md) and
 [tiered RV32IMAC engine](synexia-cpu-model/README.md) are distinct experiments,
 with separate state models and test requirements. Neither name implies a complete

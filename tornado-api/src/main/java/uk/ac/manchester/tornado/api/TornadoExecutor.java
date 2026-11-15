@@ -1,6 +1,7 @@
 /*
  * Copyright (c) 2024, APT Group, Department of Computer Science,
  * The University of Manchester.
+ * Modifications copyright (c) 2026, Hitesh Soliwal and contributors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -161,6 +162,7 @@ class TornadoExecutor {
     }
 
     void transferToHost(Object... objects) {
+        requireDeviceExecution("device-to-host transfers");
         if (immutableTaskGraphList.size() == 1) {
             immutableTaskGraphList.getFirst().transferToHost(objects);
             return;
@@ -179,6 +181,7 @@ class TornadoExecutor {
     }
 
     void partialTransferToHost(DataRange dataRange) {
+        requireDeviceExecution("partial device-to-host transfers");
         // At this point we compute the offsets and the total size in bytes.
         dataRange.materialize();
         for (ImmutableTaskGraph immutableTaskGraph : immutableTaskGraphList) {
@@ -220,6 +223,15 @@ class TornadoExecutor {
      */
     private List<ImmutableTaskGraph> allTaskGraphs() {
         return subgraphList != null ? subgraphList : immutableTaskGraphList;
+    }
+
+    /** Refuse device operations before they can change plan state or launch workers. */
+    void requireDeviceExecution(String operation) {
+        for (ImmutableTaskGraph graph : allTaskGraphs()) {
+            if (graph.getTaskGraphImplementation() instanceof HostTaskGraph) {
+                throw HostTaskGraph.unsupported(operation);
+            }
+        }
     }
 
     boolean isFinished() {
@@ -409,6 +421,7 @@ class TornadoExecutor {
     }
 
     void mapOnDeviceMemoryRegion(Object destArray, Object srcArray, long offset, int fromGraphIndex, int toGraphIndex) {
+        requireDeviceExecution("device memory mapping");
         // Be sure to update the whole list of graphs
         selectAll();
 
@@ -439,6 +452,7 @@ class TornadoExecutor {
     }
 
     public void withWarmUpTime(long milliseconds, ExecutorFrame executorFrame) throws InterruptedException {
+        requireDeviceExecution("timed warm-up");
         AtomicBoolean run = new AtomicBoolean(true);
 
         // If iterations takes more than the specified amount of milliseconds,

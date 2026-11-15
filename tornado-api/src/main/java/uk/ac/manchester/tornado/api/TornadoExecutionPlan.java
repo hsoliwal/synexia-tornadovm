@@ -20,9 +20,11 @@ package uk.ac.manchester.tornado.api;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
 import uk.ac.manchester.tornado.api.common.TornadoDevice;
+import uk.ac.manchester.tornado.api.exceptions.TornadoDeviceViewNotSupported;
 import uk.ac.manchester.tornado.api.enums.ProfilerMode;
 import uk.ac.manchester.tornado.api.enums.TornadoVMBackendType;
 import uk.ac.manchester.tornado.api.exceptions.TornadoExecutionPlanException;
@@ -43,6 +45,7 @@ import uk.ac.manchester.tornado.api.plan.types.WithStrictFloatingPoint;
 import uk.ac.manchester.tornado.api.plan.types.WithConcurrentDevices;
 import uk.ac.manchester.tornado.api.plan.types.WithDefaultScheduler;
 import uk.ac.manchester.tornado.api.plan.types.WithDevice;
+import uk.ac.manchester.tornado.api.plan.types.WithDynamicShapes;
 import uk.ac.manchester.tornado.api.plan.types.WithFreeDeviceMemory;
 import uk.ac.manchester.tornado.api.plan.types.WithGraph;
 import uk.ac.manchester.tornado.api.plan.types.WithGridScheduler;
@@ -59,6 +62,7 @@ import uk.ac.manchester.tornado.api.plan.types.WithWarmUpIterations;
 import uk.ac.manchester.tornado.api.plan.types.WithWarmUpTime;
 import uk.ac.manchester.tornado.api.runtime.ExecutorFrame;
 import uk.ac.manchester.tornado.api.runtime.TornadoRuntimeProvider;
+import uk.ac.manchester.tornado.api.types.arrays.TornadoNativeArray;
 
 /**
  * Class to create and optimize execution plans for running a set of
@@ -70,12 +74,6 @@ import uk.ac.manchester.tornado.api.runtime.TornadoRuntimeProvider;
  * @since v0.15
  */
 public sealed class TornadoExecutionPlan implements AutoCloseable permits ExecutionPlanType {
-
-    /**
-     * Method to obtain the default device in TornadoVM. The default one corresponds
-     * to the device assigned to the driver (backend) with index 0 and device 0.
-     */
-    public static TornadoDevice DEFAULT_DEVICE = TornadoRuntimeProvider.getTornadoRuntime().getDefaultDevice();
 
     private static final AtomicLong globalExecutionPlanCounter = new AtomicLong(0);
 
@@ -165,6 +163,48 @@ public sealed class TornadoExecutionPlan implements AutoCloseable permits Execut
     }
 
     /**
+     * The default device of TornadoVM: device 0 of backend 0. A method, not a field, so that a program
+     * that runs on another backend never creates backend 0 (on a machine with OpenCL and CUDA, a CUDA
+     * program does not pay for OpenCL's platforms and contexts).
+     *
+     * @return the default {@link TornadoDevice}
+     */
+    public static TornadoDevice getDefaultDevice() {
+        return TornadoRuntimeProvider.getTornadoRuntime().getDefaultDevice();
+    }
+
+    /**
+     * Starts creating backend {@code backendIndex} and initialising its device {@code deviceIndex}
+     * (context, queues and device memory) on a background thread, and returns at once. The work then
+     * overlaps the program's own set-up, such as preparing its data, instead of delaying its first
+     * execution. An execution that reaches the device first waits for it to be ready. (Unlike
+     * {@link #withWarmUpIterations(int)}, it runs nothing: it only prepares the device.)
+     *
+     * @param backendIndex
+     *     the backend, as in {@link #getDevice(int, int)}
+     * @param deviceIndex
+     *     the device within the backend
+     * @return a future that completes with the device once it is ready, or exceptionally with the
+     *     reason it could not be initialised (which its first execution reports too)
+     */
+    public static CompletableFuture<TornadoDevice> initializeDeviceAsync(int backendIndex, int deviceIndex) {
+        return CompletableFuture.supplyAsync(() -> {
+            TornadoDevice device = getDevice(backendIndex, deviceIndex);
+            device.ensureLoaded(0); // a device is initialised once for all plans: no backend uses the plan id here
+            return device;
+        }, task -> Thread.ofPlatform().daemon().name("tornado-device-init").start(task));
+    }
+
+    /**
+     * {@link #initializeDeviceAsync(int, int)} for the default device ({@link #getDefaultDevice()}).
+     *
+     * @return a future that completes with the default device once it is ready
+     */
+    public static CompletableFuture<TornadoDevice> initializeDeviceAsync() {
+        return initializeDeviceAsync(0, 0);
+    }
+
+    /**
      * Method to obtain a specific device using the driver index (backend index) and
      * device index.
      *
@@ -219,6 +259,105 @@ public sealed class TornadoExecutionPlan implements AutoCloseable permits Execut
         root.numPlanResults++;
         tornadoExecutor.updateLastExecutedTaskGraph();
         return executionResult;
+    }
+
+    /**
+     * Binds an existing device allocation to a {@code cudaDeviceView} argument of this plan, for the
+     * executions that follow.
+     *
+     * <p>
+     * The address is <b>borrowed</b>: TornadoVM reads and (for a read-write view) writes through it
+     * and does nothing else to it -- no allocation, no implicit transfer in either direction, no
+     * header written into it, no free. Keeping it alive while the plan may run, freeing it after,
+     * and making another stream's data visible to this one are the caller's. Rebinding between
+     * batches is the expected use; one view belongs to one plan at a time.
+     * </p>
+     *
+     * <p>
+     * CUDA backend only. A plan that runs on any other backend refuses the binding with
+     * {@link TornadoDeviceViewNotSupported} here, rather than at execution.
+     * </p>
+     *
+     * @param view
+     *     An array created by a {@code cudaDeviceView} factory, e.g. {@code FloatArray.cudaDeviceView(n)}.
+     * @param devicePointer
+     *     Device address of the first element.
+     * @param byteLength
+     *     How many bytes are valid at that address; must be a whole number of elements and must fit
+     *     in the view's capacity.
+     * @return {@link TornadoExecutionPlan}
+     * @throws TornadoDeviceViewNotSupported
+     *     if this plan does not run on the CUDA backend.
+     * @since 8.0.1
+     */
+    public TornadoExecutionPlan bindCUDADeviceBuffer(TornadoNativeArray view, long devicePointer, long byteLength) {
+        return bindCUDADeviceBuffer(view, devicePointer, byteLength, -1, -1, false);
+    }
+
+    /**
+     * Binds an existing device allocation to a {@code cudaDeviceView} argument of this plan, stating the
+     * device it belongs to, how many of its elements hold data, and whether the kernel may write
+     * through it. See {@link #bindCUDADeviceBuffer(TornadoNativeArray, long, long)}.
+     *
+     * @param view
+     *     An array created by a {@code cudaDeviceView} factory.
+     * @param devicePointer
+     *     Device address of the first element.
+     * @param byteLength
+     *     How many bytes are valid at that address.
+     * @param logicalLength
+     *     How many elements of that span hold data, or -1 to derive it from {@code byteLength}. This
+     *     is what {@code getSize()} reports; it is not necessarily a row count (a {@code LIST}
+     *     offsets array holds one more element than there are rows).
+     * @param deviceIndex
+     *     Index of the device the address belongs to, or -1 when the caller does not state it. When
+     *     given, it is checked against the device this plan runs on.
+     * @param readOnly
+     *     Whether the kernel may only read through this view.
+     * @return {@link TornadoExecutionPlan}
+     * @since 8.0.1
+     */
+    public TornadoExecutionPlan bindCUDADeviceBuffer(TornadoNativeArray view, long devicePointer, long byteLength, long logicalLength, int deviceIndex, boolean readOnly) {
+        Objects.requireNonNull(view, "view");
+        if (!view.isCUDADeviceView()) {
+            throw new IllegalArgumentException("Only an array created by a cudaDeviceView factory can be bound to an external device address. "
+                    + "A normal array owns a TornadoVM buffer with a header, and overwriting that with a foreign pointer would corrupt both.");
+        }
+        TornadoDevice planDevice = tornadoExecutor.getDevice(0);
+        // Per device, not per build: a single installation may be built with several backends
+        // (make BACKEND=opencl,cuda), so what matters is the backend this plan runs on.
+        if (planDevice != null && planDevice.getTornadoVMBackend() != TornadoVMBackendType.CUDA) {
+            throw new TornadoDeviceViewNotSupported("Device views are implemented for the CUDA backend only, and this plan runs on " + planDevice.getTornadoVMBackend()
+                    + ". Binding borrows a raw device address, which " + planDevice.getTornadoVMBackend() + " has no equivalent of; use an ordinary array instead.");
+        }
+        if (deviceIndex >= 0) {
+            TornadoDeviceContext planContext = planDevice == null ? null : planDevice.getDeviceContext();
+            if (planContext != null && planContext.getDeviceIndex() != deviceIndex) {
+                throw new IllegalArgumentException("The address belongs to device " + deviceIndex + " but this plan runs on device " + planContext.getDeviceIndex()
+                        + "; a device address is only valid in its own device's context.");
+            }
+        }
+        view.cudaDeviceViewBinding().bind(devicePointer, byteLength, logicalLength, deviceIndex, readOnly, rootNode.executionFrame);
+        return this;
+    }
+
+    /**
+     * Releases the binding of a {@code cudaDeviceView} argument made with
+     * {@link #bindCUDADeviceBuffer(TornadoNativeArray, long, long)}. The device memory is the caller's
+     * and is not freed. A view must be unbound before another plan may bind it.
+     *
+     * @param view
+     *     The device view to unbind.
+     * @return {@link TornadoExecutionPlan}
+     * @since 8.0.1
+     */
+    public TornadoExecutionPlan unbindCUDADeviceBuffer(TornadoNativeArray view) {
+        Objects.requireNonNull(view, "view");
+        if (!view.isCUDADeviceView()) {
+            throw new IllegalArgumentException("This array is not a device view, so it has no external binding to release");
+        }
+        view.cudaDeviceViewBinding().unbind(rootNode.executionFrame);
+        return this;
     }
 
     /**
@@ -679,6 +818,29 @@ public sealed class TornadoExecutionPlan implements AutoCloseable permits Execut
     }
 
     /**
+     * Lets the plan run with array sizes that change between executions without compiling every
+     * kernel again for each new size. A kernel that never reads the length of an array argument
+     * (sizes passed as scalars) is compiled once and shared by all tasks over arrays of other
+     * lengths; scalar arguments that keep changing become runtime values.
+     *
+     * <p>
+     * Shared code is less specialised: it can need more registers and run slower than code
+     * compiled for one size, so use it only for workloads whose shapes change, such as model
+     * serving with changing batch or sequence sizes. {@code -Dtornado.tc.dynamicShapes=true}
+     * turns it on for every plan.
+     *
+     * <p>
+     * Applies to kernels compiled by TC; elsewhere the call is accepted and has no effect.
+     *
+     * @since 8.0.1
+     * @return {@link TornadoExecutionPlan}
+     */
+    public TornadoExecutionPlan withDynamicShapes() {
+        tornadoExecutor.withDynamicShapes();
+        return new WithDynamicShapes(this);
+    }
+
+    /**
      * @since 1.0.4
      * 
      * @throws {@link
@@ -690,7 +852,8 @@ public sealed class TornadoExecutionPlan implements AutoCloseable permits Execut
     }
 
     /**
-     * It returns the current memory usage on the device in bytes.
+     * Returns the bytes of runtime-owned device buffers in the current execution. Storage consumed
+     * from unified memory belongs to the caller and is not counted.
      * 
      * @return long
      *     Number of bytes used.

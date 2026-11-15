@@ -40,6 +40,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Optional;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -53,8 +54,6 @@ import uk.ac.manchester.tornado.api.GridScheduler;
 import uk.ac.manchester.tornado.api.KernelContext;
 import uk.ac.manchester.tornado.api.tile.TileContext;
 import uk.ac.manchester.tornado.api.TaskGraph;
-import uk.ac.manchester.tornado.api.TornadoBackend;
-import uk.ac.manchester.tornado.api.TornadoRuntime;
 import uk.ac.manchester.tornado.api.TornadoTaskGraphInterface;
 import uk.ac.manchester.tornado.api.common.Access;
 import uk.ac.manchester.tornado.api.common.Event;
@@ -93,7 +92,6 @@ import uk.ac.manchester.tornado.api.exceptions.TornadoTaskRuntimeException;
 import uk.ac.manchester.tornado.api.profiler.ProfilerType;
 import uk.ac.manchester.tornado.api.profiler.TornadoProfiler;
 import uk.ac.manchester.tornado.api.runtime.ExecutorFrame;
-import uk.ac.manchester.tornado.api.runtime.TornadoRuntimeProvider;
 import uk.ac.manchester.tornado.api.types.arrays.ByteArray;
 import uk.ac.manchester.tornado.api.types.arrays.DoubleArray;
 import uk.ac.manchester.tornado.api.types.arrays.FloatArray;
@@ -101,6 +99,11 @@ import uk.ac.manchester.tornado.api.types.arrays.HalfFloatArray;
 import uk.ac.manchester.tornado.api.types.arrays.IntArray;
 import uk.ac.manchester.tornado.api.types.arrays.LongArray;
 import uk.ac.manchester.tornado.api.types.arrays.ShortArray;
+import uk.ac.manchester.tornado.api.types.arrays.TornadoNativeArray;
+import uk.ac.manchester.tornado.api.types.collections.TornadoCollectionInterface;
+import uk.ac.manchester.tornado.api.types.images.TornadoImagesInterface;
+import uk.ac.manchester.tornado.api.types.matrix.TornadoMatrixInterface;
+import uk.ac.manchester.tornado.api.types.volumes.TornadoVolumesInterface;
 import uk.ac.manchester.tornado.runtime.TornadoVM;
 import uk.ac.manchester.tornado.runtime.analyzer.MetaReduceCodeAnalysis;
 import uk.ac.manchester.tornado.runtime.analyzer.ReduceCodeAnalysis;
@@ -169,6 +172,8 @@ public class TornadoTaskGraph implements TornadoTaskGraphInterface {
     /** The other task-graphs of the same execution plan, used to resolve named producers. */
     private List<TornadoTaskGraphInterface> planTaskGraphs;
     private Set<Object> argumentsLookUp;
+    /** Set by consumeFromUnifiedMemory; keeps its checks off every graph that never declared it. */
+    private boolean unifiedMemoryDeclared;
     private List<StreamingObject> inputModesObjects; // List of objects with its data transfer mode (IN)
     private List<StreamingObject> outputModeObjects; // List of objects with its data transfer mode (OUT)
     private StringBuilder bufferLogProfiler = new StringBuilder();
@@ -342,6 +347,7 @@ public class TornadoTaskGraph implements TornadoTaskGraphInterface {
 
         newTaskGraph.taskPackages = Collections.unmodifiableList(this.taskPackages);
         newTaskGraph.argumentsLookUp = Collections.unmodifiableSet(this.argumentsLookUp);
+        newTaskGraph.unifiedMemoryDeclared = this.unifiedMemoryDeclared;
 
         newTaskGraph.reduceTaskGraph = this.reduceTaskGraph;
         newTaskGraph.analysisTaskGraph = this.analysisTaskGraph;
@@ -490,6 +496,10 @@ public class TornadoTaskGraph implements TornadoTaskGraphInterface {
      * the backend compiler contracting the separated multiply and add back together. Either alone
      * leaves the device fusing, so a caller must not be able to ask for one of them.
      */
+    public void withDynamicShapes() {
+        executionContext.meta().setDynamicShapes(true);
+    }
+
     public void withStrictFloatingPoint() {
         executionContext.meta().setStrictFloatingPoint(true);
         String existing = executionContext.meta().getCompilerFlags(TornadoVMBackendType.CUDA);
@@ -546,6 +556,8 @@ public class TornadoTaskGraph implements TornadoTaskGraphInterface {
 
     @Override
     public void mapOnDeviceMemoryRegion(Object destArray, Object srcArray, long offset, TornadoTaskGraphInterface taskGraphSrc) {
+        checkNotUnifiedMemory(destArray);
+        ((TornadoTaskGraph) taskGraphSrc).checkNotUnifiedMemory(srcArray);
 
         TornadoTaskGraph graphSrc = (TornadoTaskGraph) taskGraphSrc;
         Access objectAccessSrc = graphSrc.getObjectAccess(srcArray);
@@ -654,10 +666,10 @@ public class TornadoTaskGraph implements TornadoTaskGraphInterface {
     @Override
     public void setDevice(TornadoDevice device) {
 
-        TornadoDevice oldDevice = meta().getXPUDevice();
+        Optional<TornadoDevice> oldDevice = currentDeviceHolding(device);
 
         // prevent to set again the same device as it invalidates its state
-        if (oldDevice.equals(device)) {
+        if (oldDevice.filter(device::equals).isPresent()) {
             reuseDeviceBuffersForSameDevice(device);
             return;
         }
@@ -675,15 +687,12 @@ public class TornadoTaskGraph implements TornadoTaskGraphInterface {
             }
         }
 
-        //Release locked buffers from the old device and lock them on the new one.
-        for (LocalObjectState localState : executionContext.getObjectStates()) {
-            final DataObjectState dataObjectState = localState.getDataObjectState();
-            final XPUDeviceBufferState deviceState = dataObjectState.getDeviceBufferState(oldDevice);
-            if (deviceState.isLockedBuffer()) {
-                releaseObjectFromDeviceMemory(localState, oldDevice);
-                reuseDeviceBufferObject(localState, device);
+        oldDevice.ifPresent(old -> {
+            if (hasUnifiedMemory()) {
+                old.sync(executionPlanId);
             }
-        }
+            moveLockedBuffers(old, device);
+        });
 
         // Set Thread-Schedulers to Default Value
         for (int i = 0; i < executionContext.getTaskCount(); i++) {
@@ -691,6 +700,27 @@ public class TornadoTaskGraph implements TornadoTaskGraphInterface {
             task.meta().resetThreadBlocks();
         }
 
+    }
+
+    /**
+     * The graph's current device, or empty when it can hold nothing of the graph: a device the graph
+     * has never resolved, on another backend than {@code target}. Resolving it only to compare would
+     * create its backend (OpenCL's platforms and contexts, say, for a graph moved to a CUDA device
+     * before it first runs); on {@code target}'s backend, which exists, resolving it costs nothing.
+     */
+    private Optional<TornadoDevice> currentDeviceHolding(TornadoDevice target) {
+        return meta().isXPUDeviceResolved() || meta().getBackendIndex() == target.getBackendIndex() ? Optional.of(meta().getXPUDevice()) : Optional.empty();
+    }
+
+    /** Releases the buffers locked on {@code from} and locks them on {@code to}. */
+    private void moveLockedBuffers(TornadoDevice from, TornadoDevice to) {
+        for (LocalObjectState localState : executionContext.getObjectStates()) {
+            final XPUDeviceBufferState deviceState = localState.getDataObjectState().getDeviceBufferState(from);
+            if (deviceState.isLockedBuffer()) {
+                releaseObjectFromDeviceMemory(localState, from);
+                reuseDeviceBufferObject(localState, to);
+            }
+        }
     }
 
     private void reuseDeviceBuffersForSameDevice(TornadoDevice device) {
@@ -832,8 +862,11 @@ public class TornadoTaskGraph implements TornadoTaskGraphInterface {
 
     @Override
     public void setDevice(String taskName, TornadoDevice device) {
+        if (hasUnifiedMemory()) {
+            throw new TornadoRuntimeException("consumeFromUnifiedMemory requires one device per task graph; use withDevice(device)");
+        }
 
-        TornadoDevice oldDevice = meta().getXPUDevice();
+        Optional<TornadoDevice> oldDevice = currentDeviceHolding(device);
 
         // Recompile for the new device unless its code is cached.
         for (int i = 0; i < executionContext.getTaskCount(); i++) {
@@ -849,15 +882,7 @@ public class TornadoTaskGraph implements TornadoTaskGraphInterface {
             }
         }
 
-        // Release locked buffers from the old device and lock them on the new one.
-        for (LocalObjectState localState : executionContext.getObjectStates()) {
-            final DataObjectState dataObjectState = localState.getDataObjectState();
-            final XPUDeviceBufferState deviceState = dataObjectState.getDeviceBufferState(oldDevice);
-            if (deviceState.isLockedBuffer()) {
-                releaseObjectFromDeviceMemory(localState, oldDevice);
-                reuseDeviceBufferObject(localState, device);
-            }
-        }
+        oldDevice.ifPresent(old -> moveLockedBuffers(old, device));
 
         // Set Thread-Schedulers to Default Value
         for (int i = 0; i < executionContext.getTaskCount(); i++) {
@@ -955,6 +980,7 @@ public class TornadoTaskGraph implements TornadoTaskGraphInterface {
         buffer.limit(hlBuffer.position());
 
         final TornadoGraph tornadoGraph = TornadoGraphBuilder.buildGraph(executionContext, buffer);
+        validateUnifiedMemory();
 
         if (setNewDevice) {
             // setNewDevice does not need to propagate any further as executionContext is
@@ -1099,6 +1125,9 @@ public class TornadoTaskGraph implements TornadoTaskGraphInterface {
     }
 
     private void deoptimiseToSequentialJava(TornadoBailoutRuntimeException e) {
+        if (hasUnifiedMemory()) {
+            throw e;
+        }
         dumpDeoptimisationReason(e);
         runAllTasksJavaSequential();
     }
@@ -1109,6 +1138,9 @@ public class TornadoTaskGraph implements TornadoTaskGraphInterface {
      */
     @Override
     public void transferDataToDevice(ExecutorFrame executionPackage, Object... objects) {
+        for (Object object : objects) {
+            checkNotUnifiedMemory(object);
+        }
         // A plan of many task-graphs asks every one of them to upload, and most of them do not
         // know the object. Answering that question first keeps the whole preparation - profiler,
         // bytecode check, device reset - off the graphs with nothing to do, which is what makes a
@@ -1233,8 +1265,97 @@ public class TornadoTaskGraph implements TornadoTaskGraphInterface {
     }
 
     @Override
+    public void consumeFromUnifiedMemory(Object... objects) {
+        if (objects == null) {
+            throw new TornadoRuntimeException("consumeFromUnifiedMemory requires native arrays");
+        }
+        for (Object object : objects) {
+            if (!(object instanceof TornadoNativeArray)) {
+                throw new TornadoRuntimeException("consumeFromUnifiedMemory only supports TornadoNativeArray inputs");
+            }
+            boolean transferred = inputModesObjects.stream().anyMatch(input -> input.object == object)
+                    || outputModeObjects.stream().anyMatch(output -> output.object == object);
+            LocalObjectState state = executionContext.getLocalStateObject(object, Access.READ_ONLY);
+            if (transferred || state.isOnDevice() || executionContext.getPersistedObjects().contains(object)) {
+                throw new TornadoRuntimeException("consumeFromUnifiedMemory conflicts with transfers and device-buffer sharing");
+            }
+            state.setUnifiedMemory(true);
+            state.getDataObjectState().lockOnEveryDevice();
+            argumentsLookUp.add(object);
+            unifiedMemoryDeclared = true;
+        }
+    }
+
+    private void checkNotUnifiedMemory(Object object) {
+        if (!unifiedMemoryDeclared) {
+            return;
+        }
+        for (LocalObjectState state : executionContext.getObjectStates()) {
+            if (state.getObject() == object && state.isUnifiedMemory()) {
+                throw new TornadoRuntimeException("Transfers and device-buffer sharing are not supported for consumeFromUnifiedMemory inputs");
+            }
+        }
+    }
+
+    private boolean hasUnifiedMemory() {
+        return unifiedMemoryDeclared;
+    }
+
+    private void validateUnifiedMemory() {
+        for (LocalObjectState state : executionContext.getObjectStates()) {
+            if (!state.isUnifiedMemory()) {
+                continue;
+            }
+            if (executionContext.getBatchSize() != TornadoExecutionContext.INIT_VALUE) {
+                throw new TornadoRuntimeException("consumeFromUnifiedMemory does not support withBatch memory chunking");
+            }
+            if (executionContext.isExecutionGraphEnabled()) {
+                throw new TornadoRuntimeException("consumeFromUnifiedMemory does not support execution-graph capture");
+            }
+            if (executionContext.isIntraPlanConcurrencyEnabled()) {
+                throw new TornadoRuntimeException("consumeFromUnifiedMemory does not support intra-plan concurrency");
+            }
+            for (TornadoXPUDevice device : executionContext.getDevices()) {
+                if (device != null && !device.equals(meta().getXPUDevice())) {
+                    throw new TornadoRuntimeException("consumeFromUnifiedMemory requires one device per task graph");
+                }
+            }
+            meta().getXPUDevice().checkOnUnifiedMemory(state.getObject());
+            MemorySegment segment = ((TornadoNativeArray) state.getObject()).getSegmentWithHeader();
+            if (planTaskGraphs == null) {
+                validateUnifiedMemoryAliases(segment);
+            } else {
+                for (TornadoTaskGraphInterface graph : planTaskGraphs) {
+                    ((TornadoTaskGraph) graph).validateUnifiedMemoryAliases(segment);
+                }
+            }
+        }
+    }
+
+    private void validateUnifiedMemoryAliases(MemorySegment imported) {
+        for (LocalObjectState state : executionContext.getObjectStates()) {
+            if (!state.isUnifiedMemory()) {
+                MemorySegment other = switch (state.getObject()) {
+                    case TornadoNativeArray array -> array.getSegmentWithHeader();
+                    case TornadoCollectionInterface<?> collection -> collection.getSegmentWithHeader();
+                    case TornadoImagesInterface<?> image -> image.getSegmentWithHeader();
+                    case TornadoMatrixInterface<?> matrix -> matrix.getSegmentWithHeader();
+                    case TornadoVolumesInterface<?> volume -> volume.getSegmentWithHeader();
+                    case MemorySegment segment -> segment;
+                    default -> null;
+                };
+                if (other != null && other.isNative() && imported.address() < Math.addExact(other.address(), other.byteSize())
+                        && other.address() < Math.addExact(imported.address(), imported.byteSize())) {
+                    throw new TornadoRuntimeException("consumeFromUnifiedMemory input overlaps an ordinary buffer in task graph " + taskGraphName);
+                }
+            }
+        }
+    }
+
+    @Override
     public void transferToDevice(final int mode, Object... objects) {
         for (Object parameter : objects) {
+            checkNotUnifiedMemory(parameter);
             if (parameter == null) {
                 throw new TornadoRuntimeException("[ERROR] null object passed into streamIn() in schedule " + executionContext.getId());
             }
@@ -1277,6 +1398,7 @@ public class TornadoTaskGraph implements TornadoTaskGraphInterface {
     @Override
     public void consumeFromDevice(String sourceTaskGraphName, Object... objects) {
         for (Object parameter : objects) {
+            checkNotUnifiedMemory(parameter);
             if (parameter == null) {
                 throw new TornadoRuntimeException("[ERROR] null object passed into streamIn() in task-graph " + executionContext.getId());
             } else if (parameter instanceof Number) {
@@ -1301,6 +1423,7 @@ public class TornadoTaskGraph implements TornadoTaskGraphInterface {
     @Override
     public void consumeFromDevice(Object... objects) {
         for (Object parameter : objects) {
+            checkNotUnifiedMemory(parameter);
             if (parameter == null) {
                 throw new TornadoRuntimeException("[ERROR] null object passed into streamIn() in task-graph " + executionContext.getId());
             } else if (parameter instanceof Number) {
@@ -1332,6 +1455,7 @@ public class TornadoTaskGraph implements TornadoTaskGraphInterface {
     @Override
     public void transferToHost(final int mode, Object... objects) {
         for (Object functionParameter : objects) {
+            checkNotUnifiedMemory(functionParameter);
             if (functionParameter == null) {
                 new TornadoLogger().warn("null object passed into streamIn() in schedule %s", executionContext.getId());
                 continue;
@@ -1460,18 +1584,10 @@ public class TornadoTaskGraph implements TornadoTaskGraphInterface {
     }
 
     private void reuseDeviceBufferObject(Object object) {
-        Access objectAccess = getObjectAccess(object);
-        final LocalObjectState localState = executionContext.getLocalStateObject(object, objectAccess);
-        // Since we do not know upfront the device to use, we need to set the lock buffer
-        // for all available devices. This does not allocate any buffer, just annotates
-        // a Java object as pinned, so the TornadoVM runtime is free to reuse the space
-        final TornadoRuntime runtime = TornadoRuntimeProvider.getTornadoRuntime();
-        int numBackends = runtime.getNumBackends();
-        for (int i = 0; i < numBackends; i++) {
-            TornadoBackend backend = runtime.getBackend(i);
-            // For every device from all backends, set the local state to reuse the buffer
-            backend.getAllDevices().forEach(device -> reuseDeviceBufferObject(localState, device));
-        }
+        // Since we do not know upfront the device to use, the buffer is locked on every device. This
+        // does not allocate any buffer, just annotates a Java object as pinned, so the TornadoVM runtime
+        // is free to reuse the space. It needs no list of devices, so it creates no backend.
+        executionContext.getLocalStateObject(object, getObjectAccess(object)).getDataObjectState().lockOnEveryDevice();
     }
 
     private void reuseDeviceBufferObject(final LocalObjectState localState, final TornadoDevice device) {
@@ -1490,6 +1606,15 @@ public class TornadoTaskGraph implements TornadoTaskGraphInterface {
     }
 
     private void freeIOObjects() {
+        if (hasUnifiedMemory()) {
+            // The caller may close its backing storage immediately after plan closure.
+            meta().getXPUDevice().sync(executionPlanId);
+        }
+        for (LocalObjectState state : executionContext.getObjectStates()) {
+            if (state.isUnifiedMemory()) {
+                releaseObjectFromDeviceMemory(state, meta().getXPUDevice());
+            }
+        }
         for (StreamingObject inputStreamObject : inputModesObjects) {
             if (streamOutObjects.contains(inputStreamObject.object)) {
                 // READ-WRITE
@@ -1567,11 +1692,28 @@ public class TornadoTaskGraph implements TornadoTaskGraphInterface {
         updateProfiler();
     }
 
+    /**
+     * The device holding {@code state}'s buffer: the graph's device, or else the device of a task that
+     * ran elsewhere ({@code -D<graph>.<task>.device}). Copies back must come from where the data is.
+     */
+    private TornadoXPUDevice deviceHolding(DataObjectState state) {
+        final TornadoXPUDevice graphDevice = meta().getXPUDevice();
+        if (state.getDeviceBufferState(graphDevice).hasObjectBuffer()) {
+            return graphDevice;
+        }
+        for (TornadoXPUDevice device : executionContext.getDevices()) {
+            if (device != null && state.getDeviceBufferState(device).hasObjectBuffer()) {
+                return device;
+            }
+        }
+        return graphDevice;
+    }
+
     private Event syncObjectInner(Object object) {
         Access objectAccess = getObjectAccess(object);
         final LocalObjectState localState = executionContext.getLocalStateObject(object, objectAccess);
         final DataObjectState dataObjectState = localState.getDataObjectState();
-        final TornadoXPUDevice device = meta().getXPUDevice();
+        final TornadoXPUDevice device = deviceHolding(dataObjectState);
         final XPUDeviceBufferState deviceState = dataObjectState.getDeviceBufferState(device);
         if (deviceState.isLockedBuffer()) {
             return device.resolveEvent(executionPlanId, device.streamOutBlocking(executionPlanId, object, 0, deviceState, null));
@@ -1583,16 +1725,23 @@ public class TornadoTaskGraph implements TornadoTaskGraphInterface {
         Access objectAccess = getObjectAccess(object);
         final LocalObjectState localState = executionContext.getLocalStateObject(object, objectAccess);
         final DataObjectState dataObjectState = localState.getDataObjectState();
-        final TornadoXPUDevice device = meta().getXPUDevice();
+        final TornadoXPUDevice device = deviceHolding(dataObjectState);
         final XPUDeviceBufferState deviceState = dataObjectState.getDeviceBufferState(device);
-        deviceState.setPartialCopySize(partialCopySize);
-        if (deviceState.isLockedBuffer()) {
-            return device.resolveEvent(executionPlanId, device.streamOutBlocking(executionPlanId, object, offset, deviceState, null));
+        if (!deviceState.isLockedBuffer()) {
+            return null;
         }
-        return null;
+        deviceState.setPartialCopySize(partialCopySize);
+        try {
+            return device.resolveEvent(executionPlanId, device.streamOutBlocking(executionPlanId, object, offset, deviceState, null));
+        } finally {
+            // The size is for this copy only: left behind, it turned every later copy of the object,
+            // whole ones included, into this partial one.
+            deviceState.setPartialCopySize(0);
+        }
     }
 
     private Event syncObjectInnerLazy(Object object, long hostOffset, long bufferSize) {
+        checkNotUnifiedMemory(object);
         Access objectAccess = getObjectAccess(object);
         final LocalObjectState localState = executionContext.getLocalStateObject(object, objectAccess);
         final DataObjectState dataObjectState = localState.getDataObjectState();
@@ -1755,6 +1904,9 @@ public class TornadoTaskGraph implements TornadoTaskGraphInterface {
             analysisTaskGraph = ReduceCodeAnalysis.analyzeTaskGraph(taskPackages);
             reduceAnalysis = true;
             if (analysisTaskGraph != null && analysisTaskGraph.isValid()) {
+                if (hasUnifiedMemory()) {
+                    throw new TornadoRuntimeException("consumeFromUnifiedMemory does not support reduction rewriting");
+                }
                 rewriteTaskForReduceSkeleton(analysisTaskGraph);
                 abstractTaskGraph = this;
             }
@@ -1863,6 +2015,12 @@ public class TornadoTaskGraph implements TornadoTaskGraphInterface {
      * new.
      */
     private void bailout(Exception cause) {
+        if (hasUnifiedMemory()) {
+            if (cause instanceof RuntimeException error) {
+                throw error;
+            }
+            throw new TornadoRuntimeException("consumeFromUnifiedMemory does not support sequential fallback");
+        }
         if (!TornadoOptions.RECOVER_BAILOUT) {
             throw new TornadoBailoutRuntimeException("[TornadoVM] Error - Recover option disabled", cause);
         } else {
